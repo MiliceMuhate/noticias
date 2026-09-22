@@ -1,0 +1,14 @@
+[Unit]
+Description=GitHub webhook receiver — deploy noticias
+After=network.target docker.service
+
+[Service]
+Type=simple
+User=deploy
+EnvironmentFile=/opt/noticias/deploy/deploy.env
+ExecStart=/usr/bin/webhook -hooks /opt/noticias/deploy/hooks.json -port 9000 -verbose
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

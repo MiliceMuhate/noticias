@@ -1,9 +1,9 @@
-# Este ficheiro é copiado para a VPS pelo workflow .github/workflows/deploy.yml
-# (job "deploy") e depois usado com `docker compose pull && docker compose up -d`.
-# Os segredos reais (api.env) NUNCA vêm daqui nem do git — vivem só na VPS.
+# Corre diretamente na VPS, dentro do clone do repositório (deploy/deploy.sh
+# chama `docker compose build` aqui) — sem registry, sem GitHub Actions.
 services:
   api:
-    image: ghcr.io/${GHCR_OWNER}/noticias-api:${IMAGE_TAG:-latest}
+    build:
+      context: ../apps/api
     restart: unless-stopped
     env_file:
       - ./api.env
@@ -11,7 +11,13 @@ services:
       - "127.0.0.1:8000:8000"
 
   web:
-    image: ghcr.io/${GHCR_OWNER}/noticias-web:${IMAGE_TAG:-latest}
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
+        VITE_ADSENSE_CLIENT_ID: ${VITE_ADSENSE_CLIENT_ID}
     restart: unless-stopped
     ports:
       - "127.0.0.1:8080:80"

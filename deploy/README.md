@@ -1,86 +1,121 @@
-# Deploy — VPS Contabo via GitHub Actions
+# Deploy — VPS Contabo, sem GitHub Actions
 
-O workflow `.github/workflows/deploy.yml` corre em cada push a `main`:
+A conta GitHub usada neste repositório tem o Actions bloqueado (questão de
+faturação), por isso o deploy não passa por lá. Em vez disso, a própria VPS
+faz tudo sozinha, disparada por um **webhook** do GitHub (isto é sempre
+gratuito, não depende de Actions/Packages):
 
-1. Testa `apps/api` (pytest) e `apps/web` (typecheck).
-2. Aplica as migrações Supabase pendentes ao projeto de produção (`supabase db push`).
-3. Constrói as imagens Docker de `apps/api` e `apps/web` e envia-as para o
-   GitHub Container Registry (`ghcr.io`).
-4. Liga-se por SSH à VPS, atualiza `docker-compose.yml` e corre
-   `docker compose pull && docker compose up -d`.
-
-Este README documenta o que precisas de configurar **uma vez** — o resto é automático.
+```
+push em main -> GitHub dispara webhook -> `webhook` (systemd, na VPS) valida
+a assinatura -> corre deploy/deploy.sh -> git pull + supabase db push +
+docker compose build + docker compose up -d
+```
 
 ## 1. Preparar a VPS
 
-```bash
-# na VPS, como o utilizador que o deploy vai usar
-mkdir -p /opt/noticias
-cd /opt/noticias
-
-# login no GHCR uma única vez (token com scope read:packages, gerado em
-# github.com/settings/tokens — não precisa de expirar, mas pode ser revogado
-# e recriado se preferires; fica só em ~/.docker/config.json na VPS)
-docker login ghcr.io -u <o-teu-user-github>
-
-# ficheiro com os segredos reais da API — nunca commitado
-cp apps/api/.env.example api.env   # depois edita com valores reais
-```
-
-`api.env` deve ter, no mínimo: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
-`ANTHROPIC_API_KEY` (ver `apps/api/.env.example` para a lista completa).
-
-Se ainda não há um proxy reverso na VPS: qualquer nginx/Caddy à frente, a
-apontar o domínio público para `127.0.0.1:8080` (web) e `/api` (ou subdomínio)
-para `127.0.0.1:8000` (api), com TLS — isso fica fora deste workflow.
-
-## 2. Chave SSH dedicada ao deploy
+Pré-requisitos: Docker + plugin `docker compose`, `git`, Supabase CLI, e o
+binário `webhook` (pacote `webhook` em Debian/Ubuntu — `adnanh/webhook`).
 
 ```bash
-ssh-keygen -t ed25519 -f deploy_key -C "github-actions-deploy" -N ""
-# copia deploy_key.pub para ~/.ssh/authorized_keys do utilizador de deploy na VPS
-# guarda o conteúdo de deploy_key (privada) no secret VPS_SSH_KEY (passo 3)
+sudo apt update && sudo apt install -y docker.io docker-compose-plugin git webhook
+
+# Supabase CLI (confirma a versão mais recente em
+# https://github.com/supabase/cli/releases)
+curl -fsSL -o supabase.deb \
+  https://github.com/supabase/cli/releases/latest/download/supabase_linux_amd64.deb
+sudo dpkg -i supabase.deb && rm supabase.deb
+
+# utilizador dedicado ao deploy, no grupo docker
+sudo useradd -m -G docker deploy
+sudo -iu deploy
 ```
 
-## 3. Secrets e Variables no GitHub
+Clona o repositório para `/opt/noticias` (usa uma chave SSH de deploy,
+read-only, adicionada em **Settings → Deploy keys** do repositório — isto
+não é afetado pelo bloqueio de faturação, só o Actions/Packages estão):
 
-Em **Settings → Secrets and variables → Actions** do repositório:
+```bash
+ssh-keygen -t ed25519 -f ~/.ssh/noticias_deploy -C "vps-deploy" -N ""
+cat ~/.ssh/noticias_deploy.pub   # cola em GitHub -> repo -> Settings -> Deploy keys (read-only)
+cat >> ~/.ssh/config <<'EOF'
+Host github.com
+  IdentityFile ~/.ssh/noticias_deploy
+EOF
+sudo git clone git@github.com:MiliceMuhate/noticias.git /opt/noticias
+sudo chown -R deploy:deploy /opt/noticias
+chmod +x /opt/noticias/deploy/deploy.sh
+```
 
-### Secrets (`Secrets`)
+## 2. Ficheiros de segredos (só na VPS, nunca no git)
 
-| Nome | Para quê |
-|---|---|
-| `VPS_HOST` | IP ou domínio da VPS Contabo |
-| `VPS_USER` | utilizador SSH do deploy |
-| `VPS_SSH_KEY` | chave privada gerada no passo 2 |
-| `VPS_PORT` | porta SSH, se não for 22 (opcional) |
-| `VPS_DEPLOY_PATH` | caminho na VPS, ex. `/opt/noticias` |
-| `SUPABASE_ACCESS_TOKEN` | token pessoal (`supabase login`), para `supabase db push` em CI |
-| `SUPABASE_PROJECT_REF` | ref do projeto Supabase de produção |
-| `SUPABASE_DB_PASSWORD` | password da BD do projeto de produção |
-| `VITE_SUPABASE_URL` | URL do projeto Supabase — embebido no build do web |
-| `VITE_SUPABASE_ANON_KEY` | chave `anon` — embebida no build do web (pública por natureza, mas mantém-se como secret aqui) |
+```bash
+cd /opt/noticias/deploy
+cp ../apps/api/.env.example api.env        # preenche com os valores reais da API
+cp .env.example .env                        # VITE_* usados no build do web
+cp deploy.env.example deploy.env            # WEBHOOK_SECRET + Supabase CLI
+```
 
-### Variables (`Variables`, não secretas)
+- `api.env` — runtime da API (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
+  `ANTHROPIC_API_KEY`, ver `apps/api/.env.example`).
+- `.env` — só os `VITE_*` públicos, usados como build-args do Dockerfile do web.
+- `deploy.env` — `WEBHOOK_SECRET` (gera com `openssl rand -hex 32`),
+  `SUPABASE_ACCESS_TOKEN` (`supabase login` localmente para o obteres),
+  `SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD` (do projeto de produção).
 
-| Nome | Para quê |
-|---|---|
-| `VITE_ADSENSE_CLIENT_ID` | client id do AdSense (opcional; deixa por definir até teres a conta aprovada) |
+## 3. Serviço do webhook
 
-`GITHUB_TOKEN` (login no GHCR durante o build) é automático — não precisas de criar nada.
+```bash
+sudo cp /opt/noticias/deploy/webhook.service /etc/systemd/system/webhook.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now webhook
+sudo systemctl status webhook
+```
 
-## 3 bis. Aviso sobre visibilidade do repositório
+A porta `9000` fica local à VPS — expõe-a ao GitHub através do teu
+reverse proxy existente (nginx/Caddy) com TLS, ex. um subdomínio
+`https://deploy.o-teu-dominio.tld/hooks/deploy-noticias` a fazer proxy_pass
+para `127.0.0.1:9000/hooks/deploy-noticias`. Sem proxy/TLS ainda, podes
+expor a porta diretamente (`http://<ip-da-vps>:9000/hooks/deploy-noticias`)
+para testar, mas troca para HTTPS antes de ires viver com isto de vez.
 
-Guardrail #4 do `CLAUDE.md`: nenhum segredo no repositório. `SUPABASE_SERVICE_ROLE_KEY`
-e `ANTHROPIC_API_KEY` **nunca** entram no workflow nem no `docker-compose.yml` — só
-existem em `api.env`, na VPS. Se o repositório for privado, as imagens no GHCR também
-ficam privadas por omissão (daí o `docker login` manual no passo 1).
+## 4. Webhook no GitHub
 
-## 4. Primeira execução
+No repositório: **Settings → Webhooks → Add webhook**
 
-Depois de configurados os secrets, faz push para `main` (ou corre o workflow
-manualmente em **Actions → Deploy produção → Run workflow**). Confirma:
+- **Payload URL**: a URL do passo 3.
+- **Content type**: `application/json`
+- **Secret**: o mesmo valor de `WEBHOOK_SECRET` em `deploy.env`.
+- **Events**: só "Just the push event".
 
-- `docker compose ps` na VPS mostra `api` e `web` a correr (`healthy`).
+`deploy/hooks.json` já filtra para só disparar em push a `refs/heads/main`.
+
+## 5. Primeira execução
+
+```bash
+# manual, para validar antes de depender do webhook:
+sudo -u deploy /opt/noticias/deploy/deploy.sh
+
+# ou faz um push de teste em main e acompanha os logs do recetor:
+journalctl -u webhook -f
+```
+
+Confirma:
+
+- `docker compose ps` (dentro de `/opt/noticias/deploy`) mostra `api` e `web`
+  a correr.
 - `curl -s 127.0.0.1:8000/health` responde `{"status":"ok"}`.
 - `curl -s 127.0.0.1:8080/` devolve o `index.html` do site.
+
+## Nota — guardrail #4 (CLAUDE.md)
+
+Nenhum segredo real vive no repositório: `api.env`, `.env` e `deploy.env`
+existem só na VPS (o `.gitignore` já os exclui — só os `*.env.example`
+ficam versionados). `SUPABASE_SERVICE_ROLE_KEY` e `ANTHROPIC_API_KEY` nunca
+passam pelo GitHub, nem sequer pelo webhook — só pelo `api.env` local.
+
+## Voltar a usar GitHub Actions mais tarde
+
+Se resolveres o bloqueio de faturação da conta e quiseres voltar a um
+pipeline no GitHub Actions (build+push para GHCR, deploy por SSH), a
+abordagem anterior fica documentada no histórico do git deste ficheiro —
+pergunta e eu reponho-a.
