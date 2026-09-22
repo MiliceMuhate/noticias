@@ -1,0 +1,10 @@
+**/node_modules
+**/.venv
+**/__pycache__
+**/dist
+**/*.egg-info
+.git
+.claude
+docs
+supabase
+apps/api

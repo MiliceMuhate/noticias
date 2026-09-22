@@ -1,0 +1,17 @@
+# Este ficheiro é copiado para a VPS pelo workflow .github/workflows/deploy.yml
+# (job "deploy") e depois usado com `docker compose pull && docker compose up -d`.
+# Os segredos reais (api.env) NUNCA vêm daqui nem do git — vivem só na VPS.
+services:
+  api:
+    image: ghcr.io/${GHCR_OWNER}/noticias-api:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file:
+      - ./api.env
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  web:
+    image: ghcr.io/${GHCR_OWNER}/noticias-web:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:80"
