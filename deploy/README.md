@@ -17,12 +17,21 @@ Pré-requisitos: Docker + plugin `docker compose`, `git`, Supabase CLI, e o
 binário `webhook` (pacote `webhook` em Debian/Ubuntu — `adnanh/webhook`).
 
 ```bash
-sudo apt update && sudo apt install -y docker.io docker-compose-plugin git webhook
+# se `docker --version` e `docker compose version` já respondem, o Docker já
+# está instalado (ex. pelo repositório oficial download.docker.com) — não
+# instales `docker.io`/`docker-compose-plugin` do Ubuntu por cima, entra em
+# conflito (containerd.io vs containerd). Nesse caso só falta:
+sudo apt update && sudo apt install -y git webhook
 
-# Supabase CLI (confirma a versão mais recente em
-# https://github.com/supabase/cli/releases)
+# só se `docker` não existir de todo:
+# sudo apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin git webhook
+
+# Supabase CLI — o nome do .deb inclui a versão, por isso resolve-se a
+# tag da última release primeiro (não existe um atalho "latest" com nome fixo)
+SUPABASE_TAG=$(curl -fsSL https://api.github.com/repos/supabase/cli/releases/latest \
+  | grep -oP '"tag_name":\s*"\K[^"]+')
 curl -fsSL -o supabase.deb \
-  https://github.com/supabase/cli/releases/latest/download/supabase_linux_amd64.deb
+  "https://github.com/supabase/cli/releases/download/${SUPABASE_TAG}/supabase_${SUPABASE_TAG#v}_linux_amd64.deb"
 sudo dpkg -i supabase.deb && rm supabase.deb
 
 # utilizador dedicado ao deploy, no grupo docker
