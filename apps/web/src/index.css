@@ -1,0 +1,39 @@
+@import 'tailwindcss';
+@plugin '@tailwindcss/typography';
+
+/* Ver docs/DESIGN.md — tokens da identidade visual do site. */
+@theme {
+  --color-pitch-50: #eefaf3;
+  --color-pitch-100: #d2f0dd;
+  --color-pitch-200: #a6e0bd;
+  --color-pitch-300: #6fc898;
+  --color-pitch-400: #3fa873;
+  --color-pitch-500: #1f8a5a;
+  --color-pitch-600: #0f6b45;
+  --color-pitch-700: #0c5538;
+  --color-pitch-800: #0a432e;
+  --color-pitch-900: #073322;
+  --color-pitch-950: #041d13;
+
+  --color-gold-300: #fbdd8a;
+  --color-gold-400: #f7c948;
+  --color-gold-500: #f0b429;
+  --color-gold-600: #d69e1f;
+
+  /* Delvis Design System (site publico de noticias, ver .claude/design/design.md).
+     Namespace proprio para nao afetar o painel /admin (cores/fontes de sempre). */
+
+  --color-delvis-ink: #09414e;
+  --color-delvis-body: #3f5b63;
+  --color-delvis-mute: #5d7b82;
+  --color-delvis-teal: #0d6a7c;
+  --color-delvis-teal-600: #128293;
+  --color-delvis-cyan: #1898bf;
+  --color-delvis-surface: #f7fafa;
+  --color-delvis-line: #e3e8ea;
+  --color-delvis-line-2: #eef2f3;
+  --color-delvis-placeholder: #f2f5f6;
+
+  --font-display: 'Oswald', ui-sans-serif, system-ui, sans-serif;
+  --font-body: 'Quicksand', ui-sans-serif, system-ui, sans-serif;
+}

@@ -1,0 +1,16 @@
+{
+  "name": "maquina-de-conteudo",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Sistema semi-autónomo de deteção de tendências e geração de conteúdo com portão de aprovação humana",
+  "scripts": {
+    "dev:web": "pnpm --filter web dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "gen:types": "supabase gen types typescript --local > packages/shared/src/db.ts"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20"
+  }
+}

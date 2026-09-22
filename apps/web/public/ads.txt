@@ -1,0 +1,8 @@
+# Ficheiro exigido pelo AdSense para verificar quem está autorizado a vender
+# anúncios neste site (Authorized Digital Sellers). Depois de a tua conta
+# AdSense ser aprovada, o Google mostra-te a linha exata a colar aqui —
+# algo como:
+#
+# google.com, pub-XXXXXXXXXXXXXXXX, DIRECT, f08c47fec0942fa0
+#
+# Substitui esta linha por essa (mantém o resto do ficheiro vazio/comentários).

@@ -1,0 +1,29 @@
+# dependencies
+node_modules/
+.pnpm-store/
+apps/api/.venv/
+apps/api/**/__pycache__/
+*.egg-info/
+
+# builds
+dist/
+build/
+*.tsbuildinfo
+
+# env — segredos nunca no repositório (guardrail #4)
+.env
+.env.*
+!.env.example
+
+# supabase local
+supabase/.branches/
+supabase/.temp/
+
+# editor/os
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+
+# logs
+*.log
