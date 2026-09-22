@@ -36,12 +36,21 @@ sudo dpkg -i supabase.deb && rm supabase.deb
 
 # utilizador dedicado ao deploy, no grupo docker
 sudo useradd -m -G docker deploy
-sudo -iu deploy
+
+# /opt/noticias pertence ao root por omissão — dá-o ao deploy ANTES de
+# entrares nesse utilizador, para o clone a seguir não precisar de sudo
+sudo mkdir -p /opt/noticias
+sudo chown deploy:deploy /opt/noticias
+
+sudo -iu deploy   # a partir daqui és o utilizador `deploy` (confirma no prompt)
 ```
 
 Clona o repositório para `/opt/noticias` (usa uma chave SSH de deploy,
 read-only, adicionada em **Settings → Deploy keys** do repositório — isto
-não é afetado pelo bloqueio de faturação, só o Actions/Packages estão):
+não é afetado pelo bloqueio de faturação, só o Actions/Packages estão).
+**Tudo o que se segue corre como o utilizador `deploy`, nunca com `sudo`** —
+se usares `sudo` aqui, o comando passa a correr como `root`, que não conhece
+esta chave, e o clone falha com "Permission denied (publickey)":
 
 ```bash
 ssh-keygen -t ed25519 -f ~/.ssh/noticias_deploy -C "vps-deploy" -N ""
@@ -50,8 +59,13 @@ cat >> ~/.ssh/config <<'EOF'
 Host github.com
   IdentityFile ~/.ssh/noticias_deploy
 EOF
-sudo git clone git@github.com:MiliceMuhate/noticias.git /opt/noticias
-sudo chown -R deploy:deploy /opt/noticias
+
+# confirma antes de clonar — deve responder "Hi <utilizador>! You've
+# successfully authenticated..." (se dermos "Permission denied", a chave
+# ainda não foi aceite no passo anterior, não avances)
+ssh -T git@github.com
+
+git clone git@github.com:MiliceMuhate/noticias.git /opt/noticias
 chmod +x /opt/noticias/deploy/deploy.sh
 ```
 
