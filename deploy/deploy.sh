@@ -16,6 +16,12 @@ echo "[deploy] $(date -Iseconds) — a atualizar para origin/main"
 git fetch origin main
 git reset --hard origin/main
 
+# hooks.json nunca fica no git (leva o WEBHOOK_SECRET) — gera-se aqui a partir
+# do molde + deploy.env. O `webhook` corre com -hotreload, por isso apanha
+# esta escrita sozinho, sem precisar de restart do serviço.
+echo "[deploy] a gerar hooks.json a partir do molde"
+envsubst '${WEBHOOK_SECRET}' < "$REPO_DIR/deploy/hooks.json.template" > "$REPO_DIR/deploy/hooks.json"
+
 echo "[deploy] a aplicar migrações Supabase"
 supabase link --project-ref "$SUPABASE_PROJECT_REF" >/dev/null
 supabase db push

@@ -13,18 +13,20 @@ docker compose build + docker compose up -d
 
 ## 1. Preparar a VPS
 
-Pré-requisitos: Docker + plugin `docker compose`, `git`, Supabase CLI, e o
-binário `webhook` (pacote `webhook` em Debian/Ubuntu — `adnanh/webhook`).
+Pré-requisitos: Docker + plugin `docker compose`, `git`, Supabase CLI, o
+binário `webhook` (pacote `webhook` em Debian/Ubuntu — `adnanh/webhook`) e
+`envsubst` (pacote `gettext-base` — gera o `hooks.json` real a partir do
+molde, ver secção 3).
 
 ```bash
 # se `docker --version` e `docker compose version` já respondem, o Docker já
 # está instalado (ex. pelo repositório oficial download.docker.com) — não
 # instales `docker.io`/`docker-compose-plugin` do Ubuntu por cima, entra em
 # conflito (containerd.io vs containerd). Nesse caso só falta:
-sudo apt update && sudo apt install -y git webhook
+sudo apt update && sudo apt install -y git webhook gettext-base
 
 # só se `docker` não existir de todo:
-# sudo apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin git webhook
+# sudo apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin git webhook gettext-base
 
 # Supabase CLI — o nome do .deb inclui a versão, por isso resolve-se a
 # tag da última release primeiro (não existe um atalho "latest" com nome fixo)
@@ -85,7 +87,28 @@ cp deploy.env.example deploy.env            # WEBHOOK_SECRET + Supabase CLI
   `SUPABASE_ACCESS_TOKEN` (`supabase login` localmente para o obteres),
   `SUPABASE_PROJECT_REF`, `SUPABASE_DB_PASSWORD` (do projeto de produção).
 
-## 3. Serviço do webhook
+`deploy/hooks.json` **não existe no git** (leva o `WEBHOOK_SECRET`) — só
+existe `hooks.json.template`, com um placeholder `${WEBHOOK_SECRET}`. O
+ficheiro real é gerado por `deploy.sh` a cada execução (`envsubst` +
+`deploy.env`), por isso o serviço do webhook só pode arrancar depois da
+primeira execução manual, a seguir.
+
+## 3. Primeira execução (manual)
+
+```bash
+sudo -u deploy /opt/noticias/deploy/deploy.sh
+```
+
+Isto aplica as migrações Supabase, gera o `hooks.json` real (a partir do
+molde) e constrói/arranca os containers. Confirma:
+
+- `docker compose -f /opt/noticias/deploy/docker-compose.yml ps` mostra
+  `api` e `web` a correr (`healthy`).
+- `curl -s 127.0.0.1:8000/health` responde `{"status":"ok"}`.
+- `curl -s 127.0.0.1:8080/` devolve o `index.html` do site.
+- `ls /opt/noticias/deploy/hooks.json` já existe.
+
+## 4. Serviço do webhook
 
 ```bash
 sudo cp /opt/noticias/deploy/webhook.service /etc/systemd/system/webhook.service
@@ -94,6 +117,10 @@ sudo systemctl enable --now webhook
 sudo systemctl status webhook
 ```
 
+O serviço corre com `-hotreload`: sempre que um deploy gera um `hooks.json`
+novo (ex. porque rodaste o `WEBHOOK_SECRET`, ou porque o `.template` mudou),
+o `webhook` recarrega-o sozinho, sem precisar de `systemctl restart`.
+
 A porta `9000` fica local à VPS — expõe-a ao GitHub através do teu
 reverse proxy existente (nginx/Caddy) com TLS, ex. um subdomínio
 `https://deploy.o-teu-dominio.tld/hooks/deploy-noticias` a fazer proxy_pass
@@ -101,33 +128,27 @@ para `127.0.0.1:9000/hooks/deploy-noticias`. Sem proxy/TLS ainda, podes
 expor a porta diretamente (`http://<ip-da-vps>:9000/hooks/deploy-noticias`)
 para testar, mas troca para HTTPS antes de ires viver com isto de vez.
 
-## 4. Webhook no GitHub
+## 5. Webhook no GitHub
 
 No repositório: **Settings → Webhooks → Add webhook**
 
-- **Payload URL**: a URL do passo 3.
+- **Payload URL**: a URL do passo 4.
 - **Content type**: `application/json`
-- **Secret**: o mesmo valor de `WEBHOOK_SECRET` em `deploy.env`.
+- **Secret**: o mesmo valor de `WEBHOOK_SECRET` em `deploy.env` — cola-o
+  (não escrevas à mão), tanto aqui como no `deploy.env`, para evitar erros
+  de transcrição em strings hexadecimais longas.
 - **Events**: só "Just the push event".
 
-`deploy/hooks.json` já filtra para só disparar em push a `refs/heads/main`.
-
-## 5. Primeira execução
+`deploy/hooks.json.template` já filtra para só disparar em push a
+`refs/heads/main` (via `X-GitHub-Event: push` + `ref`). O "ping" automático
+que o GitHub manda ao criar o webhook não é um push, por isso não deve
+disparar o `deploy.sh` — mesmo que a entrega apareça marcada como "não
+correspondida" nas "Recent Deliveries", isso não é o teste que importa.
+Testa mesmo com um push real (ex. este commit) e confirma nos logs:
 
 ```bash
-# manual, para validar antes de depender do webhook:
-sudo -u deploy /opt/noticias/deploy/deploy.sh
-
-# ou faz um push de teste em main e acompanha os logs do recetor:
-journalctl -u webhook -f
+sudo journalctl -u webhook -f
 ```
-
-Confirma:
-
-- `docker compose ps` (dentro de `/opt/noticias/deploy`) mostra `api` e `web`
-  a correr.
-- `curl -s 127.0.0.1:8000/health` responde `{"status":"ok"}`.
-- `curl -s 127.0.0.1:8080/` devolve o `index.html` do site.
 
 ## Nota — guardrail #4 (CLAUDE.md)
 

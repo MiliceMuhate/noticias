@@ -18,6 +18,8 @@ build/
 # deploy — segredos ficam só na VPS
 deploy/*.env
 !deploy/*.env.example
+# gerado por deploy.sh a partir de hooks.json.template + deploy.env (leva o WEBHOOK_SECRET)
+deploy/hooks.json
 
 # supabase local
 supabase/.branches/
