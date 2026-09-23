@@ -4,7 +4,7 @@ FROM node:20-slim AS build
 RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 WORKDIR /repo
 
-COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml tsconfig.base.json ./
 COPY packages/shared packages/shared
 COPY apps/web apps/web
 
