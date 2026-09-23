@@ -18,7 +18,7 @@ async function fetchTopics(): Promise<TopicWithJobs[]> {
 }
 
 function lastError(topic: TopicWithJobs): string | null {
-  const failed = topic.jobs
+  const failed = (topic.jobs ?? [])
     .filter((j) => j.error)
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
   return failed[0]?.error ?? null

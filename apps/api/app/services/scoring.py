@@ -3,6 +3,15 @@ Pontuação de topics: score = relevance*w1 + momentum*w2 + volume*w3
 (pesos de settings.scoring_weights, todos os fatores normalizados 0..1).
 Abaixo de settings.score_threshold → 'rejected'. Caso contrário → 'scored', e se
 settings.auto_approve_gen permitir → 'approved_for_gen'.
+
+Nota: com as fontes atuais (só RSS, sem `keywords` por fonte), relevance_score
+e volume_score caem sempre no valor neutro/omissão, e momentum vem sempre
+'rising' de `news_sources.py` — ou seja, para os pesos por omissão (seed.sql)
+todo topic de RSS pontua exatamente 0.625, sempre. `settings.auto_approve_gen.
+auto_threshold` tem de ficar <= 0.625 para o piloto automático (docs/TASKS.md
+Fase 6) ter alguma coisa para gerar — um threshold mais alto bloqueia 100% dos
+topics de RSS silenciosamente (passam em `score_threshold` mas nunca em
+`auto_approve_gen`).
 """
 
 from __future__ import annotations

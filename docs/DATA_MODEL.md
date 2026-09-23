@@ -87,10 +87,17 @@ Artigos gerados (um por `topic` gerado com sucesso).
 | metadata | jsonb | `seo_description`, `dek`, `tags`, `slug`, `alternativas` (2 títulos descartados), `variation` (vocabulário fechado de 7 valores, `docs/publicador/EDITORIAL.md` §4), `desk`, `trace` (parágrafo→`fact_id`s), `afirmacoes_de_contexto`, `originality` (relatório do portão, `docs/publicador/ORIGINALITY.md`), `self_audit`, `prompt_version`, `source_name`/`source_url` (atribuição — gravados diretamente pelo backend, nunca pelo texto do LLM) |
 | review_note | text | nota do operador ao rejeitar/editar |
 | created_at | timestamptz | |
-| published_at | timestamptz | nullable; definido pelo trigger `publish_content_item` |
-| published_url | text | nullable; `'/artigo/' \|\| slug`, definido pelo mesmo trigger |
+| published_at | timestamptz | nullable; definido pelo trigger `publish_content_item`; limpo (volta a null) ao "Retirar publicação" |
+| published_url | text | nullable; `'/artigo/' \|\| slug`, definido pelo mesmo trigger; idem |
+| published_via | text | nullable; `'auto'`\|`'manual'` — `'auto'` quando quem publicou foi o backend com o piloto automático ligado (`auth.uid() is null`), `'manual'` quando foi um humano no dashboard; definido pelo mesmo trigger, mostrado na Fila de revisão |
 
 Índices: `(status)`, `(topic_id)`. Único parcial: `(published_url) where status='published'`.
+
+"Retirar publicação" (Fila de revisão): um `update` do operador que só muda `status`
+para `'pending_review'` e limpa `published_at`/`published_url`/`published_via` — não
+precisa de nenhuma regra nova em `enforce_review_gate` (que só valida transições
+*para* `'published'`/`'rejected'`), fica coberto pela RLS normal de `content_items`
+(só operador/admin autenticado). Volta a aparecer em "Por rever".
 
 **Aprovar é publicar.** Não há tabela `channels` nem passo de publicação externo — a
 transição `pending_review → published` (só por um humano autenticado, imposta pelo

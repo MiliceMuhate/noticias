@@ -84,7 +84,7 @@ export function PublicHeader() {
       <div className="mx-auto flex max-w-5xl items-center justify-between gap-6 px-4 py-3.5 sm:px-6">
         <Link to="/" className="flex items-baseline gap-3">
           <span className="font-display text-xl font-bold uppercase tracking-wide text-delvis-ink sm:text-2xl">
-            Bola na Área
+            footballtrend
           </span>
           <span className="hidden text-[11px] font-bold uppercase tracking-[0.18em] text-delvis-mute md:inline">
             Notícias de futebol
@@ -149,7 +149,7 @@ export function PublicFooter() {
     <footer className="border-t border-delvis-line bg-delvis-surface py-6 font-body">
       <div className="mx-auto flex max-w-5xl flex-col gap-3 px-4 text-xs text-delvis-mute sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <p>
-          <span className="font-bold text-delvis-ink">Bola na Área</span> — cada notícia é gerada a partir de
+          <span className="font-bold text-delvis-ink">footballtrend</span> — cada notícia é gerada a partir de
           factos verificados e revista por um editor humano antes de publicar. © {new Date().getFullYear()}
         </p>
         <div className="flex gap-4 font-semibold">

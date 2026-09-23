@@ -47,7 +47,7 @@ DESK_BY_TIPO: dict[str, Desk] = {
 }
 
 DEFAULT_AUTHORS = {
-    "byline": "Redação Bola na Área",
+    "byline": "Redação footballtrend",
     "editor": "TODO: o teu nome",
     "ai_assisted": True,
     "desks": {
@@ -362,7 +362,7 @@ async def generate_article(topic: dict[str, Any], tracker: UsageTracker) -> str:
         facts,
         brief,
         byline=byline,
-        site_name="Bola na Área",
+        site_name="footballtrend",
         voice_variant=voice_cfg.get("variant", "pt-PT"),
         author_persona=desk_cfg.get("voice", ""),
         cliches=voice_cfg.get("cliche_blacklist", DEFAULT_VOICE["cliche_blacklist"]),

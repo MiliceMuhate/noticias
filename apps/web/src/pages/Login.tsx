@@ -22,7 +22,7 @@ export default function Login() {
         onSubmit={(e) => void handleSubmit(e)}
         className="w-full max-w-sm space-y-4 rounded-xl bg-white p-8 shadow"
       >
-        <h1 className="text-xl font-bold text-pitch-900">Bola na Área <span className="font-normal text-slate-400">· painel</span></h1>
+        <h1 className="text-xl font-bold text-pitch-900">footballtrend <span className="font-normal text-slate-400">· painel</span></h1>
         <p className="text-sm text-slate-500">Entra com a tua conta de operador.</p>
         <input
           type="email"

@@ -8,13 +8,19 @@ insert into public.settings (key, value) values
   ('scoring_weights', '{"relevance": 0.4, "momentum": 0.35, "volume": 0.25}'::jsonb),
   -- score mínimo para um topic passar a 'scored' relevante (abaixo → 'rejected')
   ('score_threshold', '{"min_score": 0.45}'::jsonb),
-  -- se true, topics com score >= auto_threshold passam logo a approved_for_gen
-  ('auto_approve_gen', '{"enabled": true, "auto_threshold": 0.65}'::jsonb),
+  -- se true, topics com score >= auto_threshold passam logo a approved_for_gen.
+  -- IMPORTANTE: com as fontes atuais (só RSS, sem `keywords` configuradas —
+  -- ver `sources` abaixo), score_topic() cai sempre nos valores neutros e
+  -- devolve exatamente 0.625 (nunca mais, nunca menos — ver
+  -- apps/api/app/services/scoring.py). auto_threshold TEM de ficar <= 0.625,
+  -- senão nenhum topic de RSS passa nunca este portão (o piloto automático
+  -- fica com a fila sempre vazia, apesar de score_threshold os aceitar).
+  ('auto_approve_gen', '{"enabled": true, "auto_threshold": 0.6}'::jsonb),
 
   -- autoria transparente, não pessoas fictícias (docs/publicador/AUTHORS.md §1).
   -- As quatro editorias (desks) vêm de AUTHORS.md §2.
   ('authors', '{
-     "byline": "Redação Bola na Área",
+     "byline": "Redação footballtrend",
      "editor": "Muhate",
      "ai_assisted": true,
      "desks": {

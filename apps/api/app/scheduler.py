@@ -243,21 +243,40 @@ async def autopilot_tick() -> None:
     esperar pelos ciclos normais acima nem por um clique por artigo. Cada fase
     é isolada: uma falha numa não trava as outras nem o próximo ciclo — isto
     corre indefinidamente até o operador desligar.
+
+    Grava sempre `last_tick_at`/`last_error` em settings.autopilot — sem isto,
+    "o piloto não fez nada" era indistinguível de "o backend nem está a
+    correr" a partir do painel (só dava para ver nos logs do processo).
     """
     if not await _autopilot_enabled():
         return
+    errors: list[str] = []
     try:
         await sync_trends()
     except Exception as err:
         log_error("autopilot", "sync_trends falhou neste ciclo", err)
+        errors.append(f"sync_trends: {err}")
     try:
         await generate_pending(limit=settings.autopilot_generate_batch)
     except Exception as err:
         log_error("autopilot", "generate_pending falhou neste ciclo", err)
+        errors.append(f"generate_pending: {err}")
     try:
         await auto_publish_ready()
     except Exception as err:
         log_error("autopilot", "auto_publish_ready falhou neste ciclo", err)
+        errors.append(f"auto_publish_ready: {err}")
+
+    cfg = _settings_map([AUTOPILOT_KEY]).get(AUTOPILOT_KEY) or {}
+    supabase.table("settings").update(
+        {
+            "value": {
+                **cfg,
+                "last_tick_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                "last_error": " | ".join(errors) if errors else None,
+            }
+        }
+    ).eq("key", AUTOPILOT_KEY).execute()
 
 
 def _is_autopublish_ready(meta: dict[str, Any]) -> bool:

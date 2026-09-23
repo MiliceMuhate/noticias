@@ -164,6 +164,7 @@ export interface Database {
           created_at: string
           published_at: string | null
           published_url: string | null
+          published_via: 'manual' | 'auto' | null
         }
         Insert: {
           id?: string
@@ -178,6 +179,7 @@ export interface Database {
           created_at?: string
           published_at?: string | null
           published_url?: string | null
+          published_via?: 'manual' | 'auto' | null
         }
         Update: {
           id?: string
@@ -192,6 +194,7 @@ export interface Database {
           created_at?: string
           published_at?: string | null
           published_url?: string | null
+          published_via?: 'manual' | 'auto' | null
         }
         Relationships: []
       }

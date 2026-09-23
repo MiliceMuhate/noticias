@@ -1,14 +1,110 @@
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Source } from '@repo/shared'
 import { supabase } from '../lib/supabase'
 
-/** Configuração: fontes de tendências de futebol (ligar/desligar). */
+/** Configuração: fontes de tendências de futebol (ligar/desligar), ritmo de publicação. */
 
 export default function Config() {
   return (
     <div className="space-y-8">
+      <PublishingLimitsSection />
       <SourcesSection />
     </div>
+  )
+}
+
+interface PublishingLimits {
+  max_published_per_day: number
+  min_minutes_between_publications: number
+  max_per_source_per_day: number
+  require_manual_edit_every_n: number
+}
+
+const LIMIT_FIELDS: { key: keyof PublishingLimits; label: string; hint: string }[] = [
+  {
+    key: 'max_published_per_day',
+    label: 'Máx. publicações por dia',
+    hint: 'Imposto na base de dados — mesmo o piloto automático não consegue ultrapassar.',
+  },
+  {
+    key: 'min_minutes_between_publications',
+    label: 'Minutos mínimos entre publicações',
+    hint: 'Idem — espaça as publicações ao longo do dia, mesmo com muitas prontas.',
+  },
+  {
+    key: 'max_per_source_per_day',
+    label: 'Máx. por fonte, por dia',
+    hint: 'Só aplicado pelo piloto automático (não há equivalente na base de dados). 0 desativa.',
+  },
+  {
+    key: 'require_manual_edit_every_n',
+    label: 'Reservar 1 em cada N para revisão manual',
+    hint: 'Só aplicado pelo piloto automático — a cada N publicações automáticas seguidas, a próxima fica à espera de um humano. 0 desativa.',
+  },
+]
+
+async function fetchPublishingLimits(): Promise<PublishingLimits> {
+  const { data, error } = await supabase.from('settings').select('value').eq('key', 'publishing_limits').single()
+  if (error) throw new Error(error.message)
+  return data.value as unknown as PublishingLimits
+}
+
+function PublishingLimitsSection() {
+  const queryClient = useQueryClient()
+  const { data: limits, isLoading } = useQuery({ queryKey: ['settings', 'publishing_limits'], queryFn: fetchPublishingLimits })
+  const [draft, setDraft] = useState<PublishingLimits | null>(null)
+
+  useEffect(() => {
+    if (limits && !draft) setDraft(limits)
+  }, [limits, draft])
+
+  const save = useMutation({
+    mutationFn: async (value: PublishingLimits) => {
+      const { error } = await supabase.from('settings').update({ value: value as never }).eq('key', 'publishing_limits')
+      if (error) throw new Error(error.message)
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['settings', 'publishing_limits'] }),
+  })
+
+  const dirty = !!draft && !!limits && JSON.stringify(draft) !== JSON.stringify(limits)
+
+  if (isLoading || !draft) return <p className="text-sm text-slate-500">A carregar limites…</p>
+
+  return (
+    <section>
+      <h2 className="mb-1 text-base font-semibold text-slate-900">Ritmo de publicação</h2>
+      <p className="mb-3 text-sm text-slate-500">
+        Aplica-se a toda a publicação, manual ou automática (ver <code>settings.publishing_limits</code>).
+      </p>
+      <div className="grid gap-4 rounded-lg border border-slate-200 bg-white p-4 sm:grid-cols-2">
+        {LIMIT_FIELDS.map(({ key, label, hint }) => (
+          <label key={key} className="block text-sm">
+            <span className="font-medium text-slate-700">{label}</span>
+            <input
+              type="number"
+              min={0}
+              value={draft[key]}
+              onChange={(e) => setDraft({ ...draft, [key]: Math.max(0, Number(e.target.value) || 0) })}
+              className="mt-1 w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+            />
+            <span className="mt-1 block text-xs text-slate-400">{hint}</span>
+          </label>
+        ))}
+      </div>
+      <div className="mt-3 flex items-center gap-3">
+        <button
+          onClick={() => save.mutate(draft)}
+          disabled={!dirty || save.isPending}
+          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+        >
+          {save.isPending ? 'A guardar…' : 'Guardar'}
+        </button>
+        {dirty && !save.isPending && <span className="text-xs text-amber-600">Alterações por guardar</span>}
+        {save.isSuccess && !dirty && <span className="text-xs text-green-600">Guardado.</span>}
+        {save.isError && <span className="text-xs text-red-600">Falhou: {save.error.message}</span>}
+      </div>
+    </section>
   )
 }
 

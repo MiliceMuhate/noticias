@@ -46,7 +46,7 @@ function Dashboard({ email }: { email: string }) {
       <header className="border-b-4 border-gold-500 bg-pitch-900">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
           <div className="flex items-center gap-6">
-            <h1 className="text-lg font-bold text-white">Bola na Área <span className="font-normal text-pitch-300">· painel</span></h1>
+            <h1 className="text-lg font-bold text-white">footballtrend <span className="font-normal text-pitch-300">· painel</span></h1>
             <nav className="flex gap-1">
               <NavLink to="revisao" className={navClass}>Fila de revisão</NavLink>
               <NavLink to="tendencias" className={navClass}>Tendências</NavLink>

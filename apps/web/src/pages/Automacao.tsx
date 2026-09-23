@@ -22,7 +22,13 @@ interface AutopilotSettings {
   started_at?: string | null
   stopped_by?: string | null
   stopped_at?: string | null
+  last_tick_at?: string | null
+  last_error?: string | null
 }
+
+/** Acima disto, "última verificação" há X min é sinal de que o backend não está a correr
+ * (autopilot_tick corre a cada ~20s enquanto o processo está vivo) — não um erro do piloto em si. */
+const STALE_TICK_MINUTES = 2
 
 interface PublishingLimits {
   require_manual_edit_every_n?: number
@@ -70,12 +76,12 @@ async function fetchFailedJobErrors(): Promise<JobLite[]> {
   return data
 }
 
-type ItemLite = Pick<ContentItem, 'id' | 'title' | 'status' | 'metadata' | 'created_at'>
+type ItemLite = Pick<ContentItem, 'id' | 'title' | 'status' | 'metadata' | 'created_at' | 'published_at'>
 
 async function fetchContentItemsLite(): Promise<ItemLite[]> {
   const { data, error } = await supabase
     .from('content_items')
-    .select('id, title, status, metadata, created_at')
+    .select('id, title, status, metadata, created_at, published_at')
     .order('created_at', { ascending: false })
     .limit(100)
   if (error) throw new Error(error.message)
@@ -140,7 +146,7 @@ export default function Automacao() {
   const readyForAutopilot = pendingReview.length - needsHuman.length
 
   const publishedToday = (items ?? []).filter(
-    (i) => i.status === 'published' && Date.now() - new Date(i.created_at).getTime() < 24 * 3600 * 1000,
+    (i) => i.status === 'published' && i.published_at && Date.now() - new Date(i.published_at).getTime() < 24 * 3600 * 1000,
   ).length
 
   return (
@@ -176,9 +182,10 @@ export default function Automacao() {
           </button>
         </div>
         {toggle.isError && <p className="mt-2 text-sm text-red-600">Falhou: {toggle.error.message}</p>}
-        {autopilot.enabled && (
-          <p className="mt-3 text-xs text-slate-400">
-            O backend deteta a mudança no ciclo seguinte (até ~20s). Sem ação tua, continua indefinidamente.
+        {autopilot.enabled && <BackendHealth lastTickAt={autopilot.last_tick_at ?? null} />}
+        {autopilot.enabled && autopilot.last_error && (
+          <p className="mt-2 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
+            ⚠️ Última verificação com erro: {autopilot.last_error}
           </p>
         )}
       </section>
@@ -261,6 +268,36 @@ export default function Automacao() {
       </section>
     </div>
   )
+}
+
+/**
+ * "Está ligado" (settings.autopilot.enabled) e "está mesmo a correr" são coisas
+ * diferentes — ligar o interruptor não arranca nada sozinho, só diz ao backend
+ * para agir quando ele passar por aqui. Se o processo não estiver de pé (ex.:
+ * terminal fechado, crash), fica ligado para sempre sem fazer nada e sem erro
+ * nenhum — daqui vem essa distinção, a partir de `last_tick_at`
+ * (autopilot_tick grava-o a cada ~20s enquanto o processo está vivo).
+ */
+function BackendHealth({ lastTickAt }: { lastTickAt: string | null }) {
+  if (!lastTickAt) {
+    return (
+      <p className="mt-2 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
+        ⚠️ O backend ainda não confirmou nenhum ciclo desde que ligaste. Confirma que o <code>uvicorn</code> está a
+        correr.
+      </p>
+    )
+  }
+  const minutesAgo = (Date.now() - new Date(lastTickAt).getTime()) / 60000
+  if (minutesAgo > STALE_TICK_MINUTES) {
+    return (
+      <p className="mt-2 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
+        ⚠️ O backend não dá sinal há {Math.round(minutesAgo)} min (devia confirmar a cada ~20s). O interruptor está
+        ligado, mas o piloto não está a correr — o processo (<code>uvicorn</code>) provavelmente parou ou não está a
+        correr. Nada acontece até o reiniciares.
+      </p>
+    )
+  }
+  return <p className="mt-3 text-xs text-slate-400">🟢 Backend ativo — última verificação há {Math.round(minutesAgo * 60)}s.</p>
 }
 
 function Stat({ label, value, tone }: { label: string; value: number; tone?: 'green' | 'amber' }) {

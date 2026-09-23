@@ -143,6 +143,18 @@ export default function ReviewQueue() {
     onSettled: invalidate,
   })
 
+  const unpublish = useMutation({
+    mutationFn: async (item: ItemWithFacts) => {
+      const { error: e } = await supabase
+        .from('content_items')
+        .update({ status: 'pending_review', published_at: null, published_url: null, published_via: null })
+        .eq('id', item.id)
+      if (e) throw new Error(e.message)
+      await audit('unpublish', item.id, { was_published_via: item.published_via })
+    },
+    onSettled: invalidate,
+  })
+
   if (isLoading) return <p className="text-slate-500">A carregar fila…</p>
   if (error) return <p className="text-red-600">Erro: {(error as Error).message}</p>
 
@@ -195,27 +207,52 @@ export default function ReviewQueue() {
       <section>
         <h2 className="mb-3 text-base font-semibold text-slate-900">Histórico recente</h2>
         <div className="space-y-2">
-          {rest.map((item) => (
-            <div
-              key={item.id}
-              className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm"
-            >
-              <span className="truncate font-medium text-slate-700">{item.title ?? '(sem título)'}</span>
-              <span className="flex items-center gap-3">
-                {item.published_url && (
-                  <a
-                    href={item.published_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-blue-600 hover:underline"
-                  >
-                    ver publicado
-                  </a>
+          {rest.map((item) => {
+            const unpublishing = unpublish.isPending && unpublish.variables?.id === item.id
+            return (
+              <div
+                key={item.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm"
+              >
+                <div className="min-w-0">
+                  <span className="truncate font-medium text-slate-700">{item.title ?? '(sem título)'}</span>
+                  {item.status === 'published' && (
+                    <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
+                      <PublishMethodBadge via={item.published_via} />
+                      {item.published_at && <span>· {new Date(item.published_at).toLocaleString('pt')}</span>}
+                    </div>
+                  )}
+                </div>
+                <span className="flex shrink-0 items-center gap-3">
+                  {item.published_url && (
+                    <a
+                      href={item.published_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-blue-600 hover:underline"
+                    >
+                      ver publicado
+                    </a>
+                  )}
+                  {item.status === 'published' && (
+                    <button
+                      onClick={() => {
+                        if (window.confirm('Retirar este artigo do site? Volta para "Por rever".')) unpublish.mutate(item)
+                      }}
+                      disabled={unpublishing}
+                      className="rounded-md border border-red-200 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                    >
+                      {unpublishing ? 'A retirar…' : 'Retirar publicação'}
+                    </button>
+                  )}
+                  <StatusBadge status={item.status} />
+                </span>
+                {unpublish.isError && unpublish.variables?.id === item.id && (
+                  <p className="w-full text-xs text-red-600">Falhou: {unpublish.error.message}</p>
                 )}
-                <StatusBadge status={item.status} />
-              </span>
-            </div>
-          ))}
+              </div>
+            )
+          })}
         </div>
       </section>
 
@@ -511,4 +548,10 @@ export function StatusBadge({ status }: { status: string }) {
       {status}
     </span>
   )
+}
+
+function PublishMethodBadge({ via }: { via: 'manual' | 'auto' | null }) {
+  if (via === 'auto') return <span title="Publicado pelo piloto automático, sem clique humano">🤖 automática</span>
+  if (via === 'manual') return <span title="Aprovado manualmente no dashboard">🧑 manual</span>
+  return null
 }
