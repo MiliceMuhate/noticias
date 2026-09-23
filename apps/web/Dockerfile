@@ -27,5 +27,7 @@ COPY --from=build /repo/apps/web/dist /usr/share/nginx/html
 
 EXPOSE 80
 
+# "localhost" dentro do container resolve para ::1 primeiro (IPv6), e o nginx só
+# escuta em IPv4 — por isso 127.0.0.1 explícito, não localhost
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD wget -qO- http://localhost/ >/dev/null || exit 1
+    CMD wget -qO- http://127.0.0.1/ >/dev/null || exit 1
