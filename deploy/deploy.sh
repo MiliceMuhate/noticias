@@ -18,9 +18,13 @@ git reset --hard origin/main
 
 # hooks.json nunca fica no git (leva o WEBHOOK_SECRET) — gera-se aqui a partir
 # do molde + deploy.env. O `webhook` corre com -hotreload, por isso apanha
-# esta escrita sozinho, sem precisar de restart do serviço.
+# esta escrita sozinho, sem precisar de restart do serviço — mas só se for
+# atómica: escrever direto com "> hooks.json" trunca o ficheiro para vazio
+# por um instante, e o vigilante de ficheiros pode apanhar esse vazio e
+# ficar sem hooks carregados (404 em tudo). mv no mesmo filesystem é atómico.
 echo "[deploy] a gerar hooks.json a partir do molde"
-envsubst '${WEBHOOK_SECRET}' < "$REPO_DIR/deploy/hooks.json.template" > "$REPO_DIR/deploy/hooks.json"
+envsubst '${WEBHOOK_SECRET}' < "$REPO_DIR/deploy/hooks.json.template" > "$REPO_DIR/deploy/hooks.json.tmp"
+mv "$REPO_DIR/deploy/hooks.json.tmp" "$REPO_DIR/deploy/hooks.json"
 
 echo "[deploy] a aplicar migrações Supabase"
 supabase link --project-ref "$SUPABASE_PROJECT_REF" >/dev/null
