@@ -39,27 +39,20 @@ function Dashboard({ email }: { email: string }) {
   useRealtime()
 
   const navClass = ({ isActive }: { isActive: boolean }) =>
-    `rounded-md px-3 py-2 text-sm font-medium ${
+    `shrink-0 whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium ${
       isActive ? 'bg-pitch-700 text-white' : 'text-pitch-200 hover:bg-pitch-800 hover:text-white'
     }`
 
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="border-b-4 border-gold-500 bg-pitch-900">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-6">
-            <h1 className="text-lg font-bold text-white">footballtrend <span className="font-normal text-pitch-300">· painel</span></h1>
-            <nav className="flex gap-1">
-              <NavLink to="revisao" className={navClass}>Fila de revisão</NavLink>
-              <NavLink to="tendencias" className={navClass}>Tendências</NavLink>
-              <NavLink to="automacao" className={navClass}>Piloto automático</NavLink>
-              <NavLink to="gastos" className={navClass}>Gastos IA</NavLink>
-              <NavLink to="config" className={navClass}>Configuração</NavLink>
-            </nav>
-          </div>
-          <div className="flex items-center gap-3 text-sm text-pitch-200">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
+          <h1 className="shrink-0 text-lg font-bold text-white">
+            footballtrend <span className="font-normal text-pitch-300">· painel</span>
+          </h1>
+          <div className="flex shrink-0 items-center gap-3 text-sm text-pitch-200">
             <a href="/" className="hover:text-white hover:underline">Ver site</a>
-            <span>{email}</span>
+            <span className="hidden sm:inline">{email}</span>
             <button
               onClick={() => void supabase.auth.signOut()}
               className="rounded-md border border-pitch-700 px-3 py-1.5 hover:bg-pitch-800"
@@ -67,6 +60,15 @@ function Dashboard({ email }: { email: string }) {
               Sair
             </button>
           </div>
+        </div>
+        <div className="mx-auto max-w-5xl px-4">
+          <nav className="flex gap-1 overflow-x-auto pb-2.5">
+            <NavLink to="revisao" className={navClass}>Fila de revisão</NavLink>
+            <NavLink to="tendencias" className={navClass}>Tendências</NavLink>
+            <NavLink to="automacao" className={navClass}>Piloto automático</NavLink>
+            <NavLink to="gastos" className={navClass}>Gastos IA</NavLink>
+            <NavLink to="config" className={navClass}>Configuração</NavLink>
+          </nav>
         </div>
       </header>
       <main className="mx-auto max-w-5xl px-4 py-6">

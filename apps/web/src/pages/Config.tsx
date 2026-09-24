@@ -139,16 +139,16 @@ function SourcesSection() {
         {(sources ?? []).map((s) => (
           <div
             key={s.id}
-            className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm"
+            className="flex flex-col items-start gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"
           >
-            <div>
+            <div className="min-w-0">
               <span className="font-medium text-slate-800">{s.kind}</span>
               <span className="ml-2 text-slate-500">nicho: {s.niche}</span>
-              <pre className="mt-1 text-xs text-slate-400">{JSON.stringify(s.config)}</pre>
+              <pre className="mt-1 whitespace-pre-wrap break-all text-xs text-slate-400">{JSON.stringify(s.config)}</pre>
             </div>
             <button
               onClick={() => toggle.mutate(s)}
-              className={`rounded-full px-3 py-1 text-xs font-medium ${
+              className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium ${
                 s.enabled ? 'bg-green-100 text-green-800' : 'bg-slate-200 text-slate-600'
               }`}
             >

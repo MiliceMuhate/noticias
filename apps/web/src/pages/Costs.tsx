@@ -111,7 +111,8 @@ function DailySpendChart({ days }: { days: DayTotal[] }) {
                 onMouseEnter={() => setHovered(i)}
                 onMouseLeave={() => setHovered((v) => (v === i ? null : v))}
               />
-              {/* alvo de hover maior que a barra, para facilitar o rato */}
+              {/* alvo de hover maior que a barra, para facilitar o rato — e
+                  onClick para o toque (mouseenter não dispara em ecrãs táteis) */}
               <rect
                 x={paddingLeft + i * barSlot}
                 y={paddingTop}
@@ -120,6 +121,7 @@ function DailySpendChart({ days }: { days: DayTotal[] }) {
                 fill="transparent"
                 onMouseEnter={() => setHovered(i)}
                 onMouseLeave={() => setHovered((v) => (v === i ? null : v))}
+                onClick={() => setHovered((v) => (v === i ? null : i))}
               />
               {i % Math.ceil(days.length / 8 || 1) === 0 && (
                 <text
