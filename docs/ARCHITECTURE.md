@@ -140,6 +140,19 @@ improvável em vez de só proibido por instrução (`docs/publicador/PROMPTS.md`
 expressões fixas do domínio) que o portão de originalidade ignora — sem isto,
 `longest_common_run` dispararia em qualquer menção a "Liga dos Campeões da UEFA".
 
+**Nota de calibração (2026-09-24):** durante as primeiras semanas, `self_audit`
+devolveu `veredicto='rever'` em 100% dos artigos, mesmo os que já tinham passado
+`originality.check` com `verdict='pass'` — o piloto automático nunca publicava
+nada sozinho, tudo exigia aprovação manual a sobrepor o aviso. Causa: o prompt
+pedia "8+ palavras iguais" para COPIADO sem ter em conta que a fonte está sempre
+em inglês e o artigo em português (o modelo "encontrava" correspondências que não
+existiam), e tratava qualquer frase de INVENTADO fora da ficha como violação,
+incluindo o comentário analítico que `write_article`'s LEI 5 pede explicitamente
+nas secções "Porque importa"/"O que vem a seguir". Corrigido em
+`app/prompts/self_audit.system.md`/`.user.md` — critérios adaptados à tradução
+cross-língua, comentário de contexto explicitamente isento, e calibração
+explícita do veredicto ("aprovado" é o resultado esperado, não a exceção).
+
 Prompts vivem em `app/prompts/*.md` (nunca em f-strings no código Python — ver
 `app/prompts.py`), um ficheiro por passo/papel. Cada passo pode usar um modelo
 diferente via `settings.model_by_step` (lido da BD, `app/settings_store.py`) — hoje
