@@ -80,7 +80,7 @@ insert into public.settings (key, value) values
   -- já aplica max_published_per_day e min_minutes_between_publications;
   -- max_per_source_per_day e require_manual_edit_every_n são aplicados por
   -- scheduler.auto_publish_ready() quando o piloto automático está ligado
-  ('publishing_limits', '{"max_published_per_day": 8, "min_minutes_between_publications": 45, "max_per_source_per_day": 3, "require_manual_edit_every_n": 5}'::jsonb),
+  ('publishing_limits', '{"max_published_per_day": 50, "min_minutes_between_publications": 45, "max_per_source_per_day": 6, "require_manual_edit_every_n": 5}'::jsonb),
 
   -- piloto automático (apps/web Automacao.tsx): desligado por omissão — ligar
   -- é uma decisão humana explícita, não o default

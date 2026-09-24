@@ -44,10 +44,19 @@ const LIMIT_FIELDS: { key: keyof PublishingLimits; label: string; hint: string }
   },
 ]
 
+// espelha supabase/seed.sql — usado quando a linha ainda não existe na BD (ex.:
+// seed nunca aplicado a um projeto hosted) em vez de partir a página.
+const DEFAULT_PUBLISHING_LIMITS: PublishingLimits = {
+  max_published_per_day: 50,
+  min_minutes_between_publications: 45,
+  max_per_source_per_day: 6,
+  require_manual_edit_every_n: 5,
+}
+
 async function fetchPublishingLimits(): Promise<PublishingLimits> {
-  const { data, error } = await supabase.from('settings').select('value').eq('key', 'publishing_limits').single()
+  const { data, error } = await supabase.from('settings').select('value').eq('key', 'publishing_limits').maybeSingle()
   if (error) throw new Error(error.message)
-  return data.value as unknown as PublishingLimits
+  return (data?.value as unknown as PublishingLimits | undefined) ?? DEFAULT_PUBLISHING_LIMITS
 }
 
 function PublishingLimitsSection() {
@@ -61,7 +70,10 @@ function PublishingLimitsSection() {
 
   const save = useMutation({
     mutationFn: async (value: PublishingLimits) => {
-      const { error } = await supabase.from('settings').update({ value: value as never }).eq('key', 'publishing_limits')
+      // upsert, não update: se a linha não existir (já aconteceu neste projeto —
+      // seed.sql nunca chegou a correr no hosted), um update fica em silêncio,
+      // sem gravar nada e sem erro nenhum
+      const { error } = await supabase.from('settings').upsert({ key: 'publishing_limits', value: value as never })
       if (error) throw new Error(error.message)
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['settings', 'publishing_limits'] }),
