@@ -9,6 +9,7 @@ Node — ver docs/ARCHITECTURE.md). Dois ciclos:
 from __future__ import annotations
 
 import datetime
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -98,7 +99,14 @@ async def score_detected_topics() -> None:
         log("score_topics", f"{scored} topics pontuados")
 
 
-async def generate_pending(limit: int = 5) -> None:
+async def generate_pending(limit: int = 5, after_each: Callable[[], Awaitable[None]] | None = None) -> None:
+    """
+    `after_each`, quando passado, corre logo a seguir a CADA topic (sucesso ou
+    falha) -- é como o piloto automático (autopilot_tick) publica cada peça
+    assim que fica pronta, em vez de esperar o lote inteiro (ver
+    auto_publish_ready). Sem `after_each` (ciclo normal, botão manual
+    "Gerar agora"), o comportamento é exatamente o de antes.
+    """
     await recover_stuck_topics()
 
     topics_res = (
@@ -110,6 +118,12 @@ async def generate_pending(limit: int = 5) -> None:
     )
     for topic in topics_res.data or []:
         await _generate_one(topic)
+        if after_each:
+            try:
+                await after_each()
+            except Exception as err:
+                # nunca deixar uma falha aqui travar os topics seguintes do lote
+                log_error("generate_pending", "after_each falhou (tenta de novo no próximo ciclo)", err)
 
 
 async def recover_stuck_topics() -> None:
@@ -151,8 +165,23 @@ async def recover_stuck_topics() -> None:
 
 async def _generate_one(topic: dict[str, Any]) -> None:
     topic_id = topic["id"]
-    # lock otimista: marca 'processing' já para não ser apanhado por outro ciclo
-    supabase.table("topics").update({"status": "processing"}).eq("id", topic_id).execute()
+    # reclamação atómica (compare-and-swap): só continua se este processo foi
+    # mesmo quem mudou o estado de 'approved_for_gen' para 'processing'. Sem
+    # o `.eq("status", ...)` aqui, duas chamadas concorrentes (o ciclo normal
+    # generate_pending a cada 2min e o autopilot_tick a cada 20s chamam a
+    # mesma função) liam o mesmo topic 'approved_for_gen' e geravam CADA UMA o
+    # seu próprio artigo para a mesma notícia — daí duplicados reais na fila
+    # e custo de LLM a dobrar. Se outro processo já reclamou este topic
+    # entretanto, a atualização afeta 0 linhas e paramos aqui, sem custo nenhum.
+    claim = (
+        supabase.table("topics")
+        .update({"status": "processing"})
+        .eq("id", topic_id)
+        .eq("status", "approved_for_gen")
+        .execute()
+    )
+    if not claim.data:
+        return
 
     prior = (
         supabase.table("jobs")
@@ -257,6 +286,12 @@ async def autopilot_tick() -> None:
     Grava sempre `last_tick_at`/`last_error` em settings.autopilot — sem isto,
     "o piloto não fez nada" era indistinguível de "o backend nem está a
     correr" a partir do painel (só dava para ver nos logs do processo).
+
+    generate_pending recebe auto_publish_ready como `after_each`: cada peça
+    fica disponível para publicação assim que ELA PRÓPRIA termina, não só no
+    fim do lote inteiro — com lotes de até `autopilot_generate_batch` (25)
+    topics, cada um com 6 chamadas ao LLM, esperar pelo lote todo podia levar
+    dezenas de minutos antes de a primeira peça pronta chegar a publicar.
     """
     if not await _autopilot_enabled():
         return
@@ -267,11 +302,14 @@ async def autopilot_tick() -> None:
         log_error("autopilot", "sync_trends falhou neste ciclo", err)
         errors.append(f"sync_trends: {err}")
     try:
-        await generate_pending(limit=settings.autopilot_generate_batch)
+        await generate_pending(limit=settings.autopilot_generate_batch, after_each=auto_publish_ready)
     except Exception as err:
         log_error("autopilot", "generate_pending falhou neste ciclo", err)
         errors.append(f"generate_pending: {err}")
     try:
+        # cobre o caso de o lote ter ficado vazio (nada novo para gerar) mas
+        # ainda assim haver algo em pending_review de um ciclo anterior à
+        # espera (ex.: tinha batido no limite diário e agora já pode publicar)
         await auto_publish_ready()
     except Exception as err:
         log_error("autopilot", "auto_publish_ready falhou neste ciclo", err)

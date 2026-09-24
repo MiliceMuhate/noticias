@@ -165,6 +165,7 @@ export interface Database {
           published_at: string | null
           published_url: string | null
           published_via: 'manual' | 'auto' | null
+          view_count: number
         }
         Insert: {
           id?: string
@@ -180,6 +181,7 @@ export interface Database {
           published_at?: string | null
           published_url?: string | null
           published_via?: 'manual' | 'auto' | null
+          view_count?: number
         }
         Update: {
           id?: string
@@ -195,6 +197,7 @@ export interface Database {
           published_at?: string | null
           published_url?: string | null
           published_via?: 'manual' | 'auto' | null
+          view_count?: number
         }
         Relationships: []
       }
@@ -305,6 +308,7 @@ export interface Database {
           ai_assisted: boolean
           published_at: string | null
           published_url: string | null
+          view_count: number
           slug: string
           seo_description: string | null
           dek: string | null
@@ -324,6 +328,10 @@ export interface Database {
       is_admin: {
         Args: Record<string, never>
         Returns: boolean
+      }
+      increment_article_view: {
+        Args: { p_id: string }
+        Returns: void
       }
     }
     Enums: {

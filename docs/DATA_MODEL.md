@@ -90,8 +90,14 @@ Artigos gerados (um por `topic` gerado com sucesso).
 | published_at | timestamptz | nullable; definido pelo trigger `publish_content_item`; limpo (volta a null) ao "Retirar publicação" |
 | published_url | text | nullable; `'/artigo/' \|\| slug`, definido pelo mesmo trigger; idem |
 | published_via | text | nullable; `'auto'`\|`'manual'` — `'auto'` quando quem publicou foi o backend com o piloto automático ligado (`auth.uid() is null`), `'manual'` quando foi um humano no dashboard; definido pelo mesmo trigger, mostrado na Fila de revisão |
+| view_count | int | default `0`; incrementado pela função `increment_article_view(uuid)` (`security definer`, `grant execute` a `anon` — só sabe fazer isto, não abre UPDATE de `content_items` a visitantes), chamada por `ArticlePage.tsx` a cada visita (1×/separador via `sessionStorage`); exposto também em `published_articles.view_count` |
 
-Índices: `(status)`, `(topic_id)`. Único parcial: `(published_url) where status='published'`.
+Índices: `(status)`, `(topic_id)`. Únicos parciais: `(published_url) where status='published'`;
+`(metadata->>'source_url') where status in ('pending_review','published')` — nunca duas peças
+ativas para a mesma notícia real (RSS pode relistar a mesma história com título ligeiramente
+diferente, gerando dois `topics`); backstop ao nível da BD para a janela de corrida entre dois
+topics distintos gerados em paralelo — `generate_article()` já verifica isto antes de gastar
+LLM, isto só apanha o caso raro em que dois processos passam ambos na verificação.
 
 "Retirar publicação" (Fila de revisão): um `update` do operador que só muda `status`
 para `'pending_review'` e limpa `published_at`/`published_url`/`published_via` — não

@@ -211,6 +211,7 @@ export default function ReviewQueue() {
                     <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-slate-400">
                       <PublishMethodBadge via={item.published_via} />
                       {item.published_at && <span>· {new Date(item.published_at).toLocaleString('pt')}</span>}
+                      <span>· 👁 {item.view_count ?? 0}</span>
                     </div>
                   )}
                 </div>

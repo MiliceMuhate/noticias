@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import ReactMarkdown from 'react-markdown'
@@ -14,6 +15,23 @@ async function fetchArticle(slug: string): Promise<PublishedArticle | null> {
   return data
 }
 
+/** 1 contagem por artigo por separador (sessionStorage) — evita que um refresh
+ * ou re-render infle a contagem sozinho. Falha em silêncio: contar visitas
+ * nunca deve impedir a leitura do artigo. */
+function useCountView(articleId: string | undefined) {
+  useEffect(() => {
+    if (!articleId) return
+    try {
+      const key = `viewed:${articleId}`
+      if (sessionStorage.getItem(key)) return
+      sessionStorage.setItem(key, '1')
+    } catch {
+      // sessionStorage indisponível (privado/bloqueado) — conta sempre, sem deduplicar
+    }
+    void supabase.rpc('increment_article_view', { p_id: articleId })
+  }, [articleId])
+}
+
 export default function ArticlePage() {
   const { slug } = useParams<{ slug: string }>()
   const {
@@ -21,6 +39,7 @@ export default function ArticlePage() {
     isLoading,
     error,
   } = useQuery({ queryKey: ['published_article', slug], queryFn: () => fetchArticle(slug!), enabled: !!slug })
+  useCountView(article?.id)
 
   const tags = Array.isArray(article?.tags) ? (article.tags as unknown[]).filter((t): t is string => typeof t === 'string') : []
 

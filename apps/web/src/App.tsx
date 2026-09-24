@@ -10,12 +10,14 @@ import Config from './pages/Config'
 import Costs from './pages/Costs'
 import NewsList from './pages/public/NewsList'
 import ArticlePage from './pages/public/ArticlePage'
+import PrivacyPolicy from './pages/public/PrivacyPolicy'
 
 export default function App() {
   return (
     <Routes>
       <Route path="/" element={<NewsList />} />
       <Route path="/artigo/:slug" element={<ArticlePage />} />
+      <Route path="/politica-de-privacidade" element={<PrivacyPolicy />} />
       <Route path="/admin/*" element={<Admin />} />
     </Routes>
   )

@@ -2,6 +2,8 @@ import { type FormEvent, type ReactNode, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useAdSense } from '../../lib/adsense'
+import { useAnalytics } from '../../lib/analytics'
+import { useConsent } from '../../lib/consent'
 import { supabase } from '../../lib/supabase'
 
 /**
@@ -70,7 +72,9 @@ function SearchIcon() {
 }
 
 export function PublicHeader() {
-  useAdSense() // só carrega no site público — nunca no painel /admin
+  const consent = useConsent()
+  useAdSense(consent.granted) // só carrega no site público — nunca no painel /admin — e só com consentimento
+  useAnalytics(consent.granted) // idem
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const [query, setQuery] = useState(searchParams.get('q') ?? '')
@@ -91,7 +95,8 @@ export function PublicHeader() {
   }
 
   return (
-    <header className="sticky top-0 z-10 bg-white font-body">
+    <>
+      <header className="sticky top-0 z-10 bg-white font-body">
       <div className="mx-auto flex max-w-5xl items-center justify-between gap-6 px-4 py-3.5 sm:px-6">
         <Link to="/" className="flex items-baseline gap-3">
           <span className="font-display text-xl font-bold uppercase tracking-wide text-delvis-ink sm:text-2xl">
@@ -174,11 +179,49 @@ export function PublicHeader() {
           </span>
         </div>
       </nav>
-    </header>
+      </header>
+      {consent.status === null && <CookieBanner onAccept={consent.accept} onReject={consent.reject} />}
+    </>
+  )
+}
+
+function CookieBanner({ onAccept, onReject }: { onAccept: () => void; onReject: () => void }) {
+  return (
+    <div
+      role="dialog"
+      aria-label="Preferências de cookies"
+      className="fixed inset-x-0 bottom-0 z-20 border-t border-delvis-line bg-white px-4 py-4 shadow-[0_-4px_16px_rgba(15,30,35,0.12)] sm:px-6"
+    >
+      <div className="mx-auto flex max-w-5xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-xs font-medium leading-relaxed text-delvis-mute sm:max-w-2xl">
+          Usamos cookies para estatísticas de visitas (Google Analytics) e para anúncios (Google AdSense). Só
+          carregam depois de aceitares.{' '}
+          <Link to="/politica-de-privacidade" className="font-semibold text-delvis-teal underline hover:text-delvis-teal-600">
+            Saber mais
+          </Link>
+          .
+        </p>
+        <div className="flex shrink-0 gap-2">
+          <button
+            onClick={onReject}
+            className="rounded-md border border-delvis-line px-4 py-2 text-xs font-semibold text-delvis-ink hover:bg-delvis-surface"
+          >
+            Rejeitar
+          </button>
+          <button
+            onClick={onAccept}
+            className="rounded-md bg-delvis-ink px-4 py-2 text-xs font-semibold text-white hover:bg-delvis-teal"
+          >
+            Aceitar
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 
 export function PublicFooter() {
+  const consent = useConsent()
   return (
     <footer className="border-t border-delvis-line bg-delvis-surface py-6 font-body">
       <div className="mx-auto flex max-w-5xl flex-col gap-3 px-4 text-xs text-delvis-mute sm:flex-row sm:items-center sm:justify-between sm:px-6">
@@ -186,10 +229,16 @@ export function PublicFooter() {
           <span className="font-bold text-delvis-ink">footballtrend</span> — cada notícia é gerada a partir de
           factos verificados e revista por um editor humano antes de publicar. © {new Date().getFullYear()}
         </p>
-        <div className="flex gap-4 font-semibold">
+        <div className="flex flex-wrap gap-4 font-semibold">
           <span>Sobre</span>
           <span>Contacto</span>
           <span>Política editorial</span>
+          <Link to="/politica-de-privacidade" className="hover:text-delvis-teal hover:underline">
+            Política de privacidade
+          </Link>
+          <button type="button" onClick={consent.reset} className="hover:text-delvis-teal hover:underline">
+            Gerir cookies
+          </button>
         </div>
       </div>
     </footer>

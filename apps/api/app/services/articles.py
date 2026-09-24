@@ -310,6 +310,25 @@ async def generate_article(topic: dict[str, Any], tracker: UsageTracker) -> str:
     if not link:
         raise GenerationError(f"topic {topic_id} sem link de artigo-fonte em raw_data")
 
+    # guarda contra duplicados: a mesma notícia pode chegar como topics
+    # diferentes (RSS relista com título ligeiramente distinto entre polls —
+    # topics_daily_uniq dedupe por termo, não pela fonte real). Verificação
+    # barata, antes de qualquer custo de rede/LLM — nunca gerar um segundo
+    # artigo para a mesma fonte enquanto o primeiro está pendente ou publicado.
+    # Ver também o índice único em content_items (mesma verificação, mas
+    # imposta na BD, para a janela de corrida entre dois topics distintos
+    # gerados ao mesmo tempo).
+    dup = (
+        supabase.table("content_items")
+        .select("id")
+        .eq("metadata->>source_url", link)
+        .in_("status", ["pending_review", "published"])
+        .limit(1)
+        .execute()
+    )
+    if dup.data:
+        raise TopicRejected(f"já existe um artigo para esta fonte: {link}")
+
     # settings primeiro, antes de gastar tempo/dinheiro em rede/LLM — um valor mal
     # formado cai para o omisso (ver _settings_dict/_settings_list), nunca rebenta.
     cfg = get_settings(["authors", "editorial_voice", "controlled_tags", "originality_thresholds"])
@@ -430,41 +449,50 @@ async def generate_article(topic: dict[str, Any], tracker: UsageTracker) -> str:
 
     # Criar a peça — SEMPRE pending_review (guardrail #1). Atribuição gravada
     # diretamente (não depende do LLM — guardrail de honestidade).
-    item_res = (
-        supabase.table("content_items")
-        .insert(
-            {
-                "topic_id": topic_id,
-                "status": "pending_review",
-                "title": pkg.titulo,
-                "body": body,
-                "author": {
-                    "byline": byline,
-                    "desk": desk,
-                    "editor": authors_cfg.get("editor", DEFAULT_AUTHORS["editor"]),
-                    "ai_assisted": authors_cfg.get("ai_assisted", True),
-                },
-                "media_url": source.image_url,
-                "metadata": {
-                    "dek": pkg.dek,
-                    "seo_description": pkg.seo_description,
-                    "tags": pkg.tags,
-                    "slug": pkg.slug,
-                    "alternativas": pkg.alternativas,
-                    "variation": brief.variacao,
-                    "desk": desk,
-                    "trace": [t.model_dump() for t in write_result.trace],
-                    "afirmacoes_de_contexto": write_result.afirmacoes_de_contexto,
-                    "originality": report.as_metadata(),
-                    "self_audit": audit.model_dump() if audit else None,
-                    "source_name": source.site_name,
-                    "source_url": source.url,
-                    "prompt_version": "publicador-v1",
-                },
-            }
+    # O índice único em (metadata->>source_url) apanha aqui a corrida rara
+    # entre dois topics DIFERENTES da mesma fonte gerados em paralelo — o
+    # dup-check lá em cima já evita o caso comum, isto é só o backstop.
+    try:
+        item_res = (
+            supabase.table("content_items")
+            .insert(
+                {
+                    "topic_id": topic_id,
+                    "status": "pending_review",
+                    "title": pkg.titulo,
+                    "body": body,
+                    "author": {
+                        "byline": byline,
+                        "desk": desk,
+                        "editor": authors_cfg.get("editor", DEFAULT_AUTHORS["editor"]),
+                        "ai_assisted": authors_cfg.get("ai_assisted", True),
+                    },
+                    "media_url": source.image_url,
+                    "metadata": {
+                        "dek": pkg.dek,
+                        "seo_description": pkg.seo_description,
+                        "tags": pkg.tags,
+                        "slug": pkg.slug,
+                        "alternativas": pkg.alternativas,
+                        "variation": brief.variacao,
+                        "desk": desk,
+                        "trace": [t.model_dump() for t in write_result.trace],
+                        "afirmacoes_de_contexto": write_result.afirmacoes_de_contexto,
+                        "originality": report.as_metadata(),
+                        "self_audit": audit.model_dump() if audit else None,
+                        "source_name": source.site_name,
+                        "source_url": source.url,
+                        "prompt_version": "publicador-v1",
+                    },
+                }
+            )
+            .execute()
         )
-        .execute()
-    )
+    except Exception as err:
+        if "23505" in str(err):
+            raise TopicRejected(f"já existe um artigo para esta fonte (corrida entre topics): {link}") from err
+        raise
+
     if not item_res.data:
         raise GenerationError("Falha a criar content_item")
 

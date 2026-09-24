@@ -59,7 +59,10 @@ scheduler interno (APScheduler, arrancado no `lifespan` da app — ver `app/main
   itens de RSS não têm volume/momentum reais, por isso caem nos valores neutros já
   previstos na fórmula).
 - **`generate_pending`** (2 min por omissão): para cada `topic` em `approved_for_gen`
-  (marca `processing` como lock) → `fetch_source_article(link)`
+  reclama-o com um `update ... where status='approved_for_gen'` (compare-and-swap —
+  não um `update` incondicional; corre ao mesmo tempo que `autopilot_tick`, que chama
+  a mesma função, por isso tem de ser seguro contra duas chamadas concorrentes
+  reclamarem o mesmo topic) → `fetch_source_article(link)`
   (`app/services/source_article.py`, extrai o texto principal da página real com
   `trafilatura`) → grava `sport_facts` (o artigo-fonte, não estatísticas) → orquestra a
   cadeia de 6 passos de `docs/publicador/PROMPTS.md` (`app/services/articles.py`
@@ -77,7 +80,11 @@ scheduler interno (APScheduler, arrancado no `lifespan` da app — ver `app/main
 - **`autopilot_tick`** (20s por omissão, sempre agendado mas quase sempre um no-op): só
   faz algo se `settings.autopilot.enabled=true`. Quando ligado, cada ciclo corre
   `sync_trends` → `generate_pending` (lote maior, 25) → `auto_publish_ready` — deteta,
-  gera e **publica sozinho**, sem esperar por um clique por artigo. `auto_publish_ready`
+  gera e **publica sozinho**, sem esperar por um clique por artigo. `generate_pending`
+  recebe `auto_publish_ready` como `after_each`: cada peça fica disponível para
+  publicação logo que ELA PRÓPRIA termina de gerar, não só no fim do lote inteiro —
+  com lotes de 25 topics a 6 chamadas de LLM cada, esperar pelo lote todo podia levar
+  dezenas de minutos até a primeira peça pronta chegar a publicar. `auto_publish_ready`
   só publica `content_items` com `metadata.originality.verdict='pass'` **e**
   (sem auditoria, ou `self_audit.veredicto='aprovado'`) — qualquer coisa marcada
   `review` fica sempre em `pending_review`, para um humano ver em `/admin/automacao`.
