@@ -115,13 +115,17 @@ export default function NewsList() {
                     <Link
                       key={article.id}
                       to={`/artigo/${article.slug}`}
-                      className={`flex gap-3.5 py-4 ${i < latest.length - 1 ? 'border-b border-delvis-line-2' : ''}`}
+                      className={`flex items-center gap-3 py-4 ${i < latest.length - 1 ? 'border-b border-delvis-line-2' : ''}`}
                     >
-                      <span className="min-w-[42px] text-xs font-medium text-delvis-mute">
-                        {formatTime(article.published_at)}
-                      </span>
-                      <div>
-                        <p className="font-display text-base font-medium leading-tight text-delvis-ink hover:underline sm:text-[17px]">
+                      <ArticleImage
+                        src={article.media_url}
+                        alt=""
+                        category={article.category}
+                        className="h-16 w-16 shrink-0 rounded object-cover"
+                      />
+                      <div className="min-w-0">
+                        <span className="text-xs font-medium text-delvis-mute">{formatTime(article.published_at)}</span>
+                        <p className="line-clamp-2 font-display text-base font-medium leading-tight text-delvis-ink hover:underline sm:text-[17px]">
                           {article.title ?? '(sem título)'}
                         </p>
                         <span className="text-xs font-medium text-delvis-mute">{article.author ?? 'Redação'}</span>
