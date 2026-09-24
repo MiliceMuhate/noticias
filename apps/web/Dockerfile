@@ -11,13 +11,16 @@ COPY apps/web apps/web
 RUN pnpm install --frozen-lockfile --filter web...
 
 # Vite embebe estas variáveis no bundle em build-time — só valores públicos
-# (chave anon, client id do AdSense), nunca segredos (guardrail #4 do CLAUDE.md).
+# (chave anon, client id do AdSense, measurement id do GA4), nunca segredos
+# (guardrail #4 do CLAUDE.md).
 ARG VITE_SUPABASE_URL
 ARG VITE_SUPABASE_ANON_KEY
 ARG VITE_ADSENSE_CLIENT_ID
+ARG VITE_GA_MEASUREMENT_ID
 ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL \
     VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY \
-    VITE_ADSENSE_CLIENT_ID=$VITE_ADSENSE_CLIENT_ID
+    VITE_ADSENSE_CLIENT_ID=$VITE_ADSENSE_CLIENT_ID \
+    VITE_GA_MEASUREMENT_ID=$VITE_GA_MEASUREMENT_ID
 
 RUN pnpm --filter web build
 
