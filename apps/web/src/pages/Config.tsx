@@ -16,7 +16,6 @@ export default function Config() {
 
 interface PublishingLimits {
   max_published_per_day: number
-  min_minutes_between_publications: number
   max_per_source_per_day: number
   require_manual_edit_every_n: number
 }
@@ -26,11 +25,6 @@ const LIMIT_FIELDS: { key: keyof PublishingLimits; label: string; hint: string }
     key: 'max_published_per_day',
     label: 'Máx. publicações por dia',
     hint: 'Imposto na base de dados — mesmo o piloto automático não consegue ultrapassar.',
-  },
-  {
-    key: 'min_minutes_between_publications',
-    label: 'Minutos mínimos entre publicações',
-    hint: 'Idem — espaça as publicações ao longo do dia, mesmo com muitas prontas.',
   },
   {
     key: 'max_per_source_per_day',
@@ -48,7 +42,6 @@ const LIMIT_FIELDS: { key: keyof PublishingLimits; label: string; hint: string }
 // seed nunca aplicado a um projeto hosted) em vez de partir a página.
 const DEFAULT_PUBLISHING_LIMITS: PublishingLimits = {
   max_published_per_day: 50,
-  min_minutes_between_publications: 45,
   max_per_source_per_day: 6,
   require_manual_edit_every_n: 5,
 }

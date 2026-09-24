@@ -37,7 +37,6 @@ interface ContentMeta {
 
 interface PublishingLimits {
   max_published_per_day?: number
-  min_minutes_between_publications?: number
 }
 
 type ItemWithFacts = ContentItem & { topics: { term: string; sport_facts: SportFact[] } | null }
@@ -71,9 +70,10 @@ async function audit(action: string, entityId: string, detail: Record<string, un
   if (error) throw new Error(`audit_log: ${error.message}`)
 }
 
-/** limite de ritmo (docs/publicador/EDITORIAL.md §9) — só os dois calculáveis a
- * partir do que já temos em mão; max_per_source_per_day e
- * require_manual_edit_every_n ficam para depois (ver plano). */
+/** limite de ritmo — só o diário é calculável a partir do que já temos em mão;
+ * max_per_source_per_day e require_manual_edit_every_n ficam para depois (ver
+ * plano); min_minutes_between_publications existiu e foi removido a pedido do
+ * operador. */
 function limitBlockReason(items: ItemWithFacts[], limits: PublishingLimits | null): string | null {
   if (!limits) return null
   const published = items.filter((i) => i.status === 'published' && i.published_at)
@@ -83,15 +83,6 @@ function limitBlockReason(items: ItemWithFacts[], limits: PublishingLimits | nul
   )
   if (limits.max_published_per_day != null && last24h.length >= limits.max_published_per_day) {
     return `limite diário de publicações atingido (${last24h.length}/${limits.max_published_per_day})`
-  }
-
-  if (limits.min_minutes_between_publications && published.length > 0) {
-    const lastPublishedAt = published.reduce((latest, i) => (i.published_at! > latest ? i.published_at! : latest), published[0]!.published_at!)
-    const minutesSince = (Date.now() - new Date(lastPublishedAt).getTime()) / 60000
-    if (minutesSince < limits.min_minutes_between_publications) {
-      const remaining = Math.ceil(limits.min_minutes_between_publications - minutesSince)
-      return `intervalo mínimo entre publicações ainda não passou (faltam ${remaining} min)`
-    }
   }
 
   return null

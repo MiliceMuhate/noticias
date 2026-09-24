@@ -53,7 +53,8 @@ Especificação completa em `docs/publicador/` (`TASKS_CONTENT.md`, `PROMPTS.md`
 - [x] 5.4 Portão de originalidade — `app/services/originality.py` (transcrito de
       `ORIGINALITY.md` §3), `tests/test_originality.py` (os 8 casos obrigatórios).
 - [x] 5.5 Empacotamento — `package` (P4); limites de ritmo em `enforce_review_gate`
-      (só `max_published_per_day`/`min_minutes_between_publications` — ver nota).
+      (só `max_published_per_day` — ver nota; existiu também
+      `min_minutes_between_publications`, removido a pedido do operador).
 - [x] 5.6 Painel — distintivo de originalidade, lista "frases a verificar" (versão
       simplificada da vista lado-a-lado — ver `docs/ARCHITECTURE.md`), seletor de
       título, checklist de `EDITORIAL.md` §8.

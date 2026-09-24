@@ -153,7 +153,7 @@ omissão em `supabase/seed.sql` e ajustáveis sem novo deploy:
 - `originality_thresholds` — limiares `{pass, block}` por métrica do portão (`docs/publicador/ORIGINALITY.md` §2); calibrar com `apps/api/scripts/calibrate_originality.py` depois dos primeiros ~20 artigos.
 - `model_by_step` — modelo Anthropic por passo (`extract_facts`, `editorial_brief`, `write_article`, `package`, `self_audit`, `rewrite_flagged`); todos apontam ao mesmo modelo por omissão.
 - `controlled_tags` — vocabulário fechado; P4 nunca inventa tags fora daqui.
-- `publishing_limits` — `{max_published_per_day, min_minutes_between_publications, max_per_source_per_day, require_manual_edit_every_n}`; os dois primeiros impostos em `enforce_review_gate` (BD), sempre, independentemente de quem publica; os outros dois não têm imposição na BD — só `scheduler.auto_publish_ready()` os respeita quando o piloto automático está ligado (uma aprovação manual avulsa no dashboard não é limitada por eles) — ver `docs/publicador/TASKS_CONTENT.md` "A perguntar depois".
+- `publishing_limits` — `{max_published_per_day, max_per_source_per_day, require_manual_edit_every_n}`; o primeiro imposto em `enforce_review_gate` (BD), sempre, independentemente de quem publica; os outros dois não têm imposição na BD — só `scheduler.auto_publish_ready()` os respeita quando o piloto automático está ligado (uma aprovação manual avulsa no dashboard não é limitada por eles) — ver `docs/publicador/TASKS_CONTENT.md` "A perguntar depois". (Existiu também `min_minutes_between_publications` — removido a pedido do operador, 2026-09-24.)
 - `autopilot` — `{enabled, auto_published_streak, started_by, started_at, stopped_by, stopped_at}`. Interruptor do piloto automático (Fase 6, `docs/TASKS.md`): com `enabled=true`, `enforce_review_gate` deixa o backend (`service_role`) publicar sem `auth.uid()` humano. Editável por qualquer operador autenticado (mesma policy de `settings`); `auto_published_streak` é escrito pelo próprio backend.
 
 ## `published_articles` (view pública)
@@ -186,9 +186,8 @@ migrações (que bypassa a RLS de `content_items`), com `grant select` a
 - `audit_log`: sem UPDATE/DELETE por ninguém a partir do cliente (append-only); o
   `INSERT` da aprovação é feito pelo trigger `publish_content_item` (`security definer`),
   não pelo cliente diretamente.
-- `enforce_review_gate` (trigger em `content_items`) também impõe `settings.publishing_limits`
-  (`max_published_per_day`, `min_minutes_between_publications`) na própria transição
-  para `'published'` — um limite só no cliente não é um limite real. Desde a Fase 6, o
+- `enforce_review_gate` (trigger em `content_items`) também impõe `settings.publishing_limits.max_published_per_day`
+  na própria transição para `'published'` — um limite só no cliente não é um limite real. Desde a Fase 6, o
   mesmo trigger aceita publicar sem `auth.uid()` quando `auth.role() = 'service_role'`
   **e** `settings.autopilot.enabled = true` — a única exceção ao "só um humano publica",
   e só nesse par de condições.

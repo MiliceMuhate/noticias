@@ -76,11 +76,12 @@ insert into public.settings (key, value) values
   -- nunca inventa tags fora desta lista
   ('controlled_tags', '["futebol", "liga dos campeões", "liga europa", "premier league", "moçambola", "transferências", "mercado", "seleção", "lesão", "arbitragem"]'::jsonb),
 
-  -- ritmo de publicação (docs/publicador/EDITORIAL.md §9); enforce_review_gate
-  -- já aplica max_published_per_day e min_minutes_between_publications;
+  -- ritmo de publicação; enforce_review_gate já aplica max_published_per_day.
   -- max_per_source_per_day e require_manual_edit_every_n são aplicados por
-  -- scheduler.auto_publish_ready() quando o piloto automático está ligado
-  ('publishing_limits', '{"max_published_per_day": 50, "min_minutes_between_publications": 45, "max_per_source_per_day": 6, "require_manual_edit_every_n": 5}'::jsonb),
+  -- scheduler.auto_publish_ready() quando o piloto automático está ligado.
+  -- (min_minutes_between_publications existiu e foi removido a pedido do
+  -- operador — não interessava espaçar publicações no tempo.)
+  ('publishing_limits', '{"max_published_per_day": 50, "max_per_source_per_day": 6, "require_manual_edit_every_n": 5}'::jsonb),
 
   -- piloto automático (apps/web Automacao.tsx): desligado por omissão — ligar
   -- é uma decisão humana explícita, não o default

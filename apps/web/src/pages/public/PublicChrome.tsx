@@ -60,11 +60,21 @@ async function fetchCategories(): Promise<string[]> {
   return Array.from(unique).sort((a, b) => a.localeCompare(b, 'pt'))
 }
 
+function SearchIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5d7b82" strokeWidth="2" strokeLinecap="round">
+      <circle cx="11" cy="11" r="7" />
+      <path d="M20 20l-4.3-4.3" />
+    </svg>
+  )
+}
+
 export function PublicHeader() {
   useAdSense() // só carrega no site público — nunca no painel /admin
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const [query, setQuery] = useState(searchParams.get('q') ?? '')
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
   const activeCategory = searchParams.get('categoria')
   const { data: categories } = useQuery({
     queryKey: ['published_articles', 'categories'],
@@ -77,6 +87,7 @@ export function PublicHeader() {
     event.preventDefault()
     const term = sanitizeSearchTerm(query)
     navigate(term ? `/?q=${encodeURIComponent(term)}` : '/')
+    setMobileSearchOpen(false)
   }
 
   return (
@@ -95,10 +106,7 @@ export function PublicHeader() {
             onSubmit={handleSearch}
             className="hidden items-center gap-2 rounded-full border border-delvis-line px-3.5 py-2 sm:flex"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5d7b82" strokeWidth="2" strokeLinecap="round">
-              <circle cx="11" cy="11" r="7" />
-              <path d="M20 20l-4.3-4.3" />
-            </svg>
+            <SearchIcon />
             <input
               type="search"
               value={query}
@@ -108,16 +116,42 @@ export function PublicHeader() {
               className="w-40 bg-transparent text-[13px] font-medium text-delvis-ink placeholder:text-delvis-mute focus:outline-none"
             />
           </form>
+          <button
+            type="button"
+            onClick={() => setMobileSearchOpen((v) => !v)}
+            aria-label={mobileSearchOpen ? 'Fechar pesquisa' : 'Pesquisar notícias'}
+            aria-expanded={mobileSearchOpen}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-delvis-line text-delvis-ink sm:hidden"
+          >
+            {mobileSearchOpen ? '✕' : <SearchIcon />}
+          </button>
           <span className="hidden text-xs font-medium capitalize text-delvis-mute lg:inline">{today}</span>
         </div>
       </div>
 
+      {mobileSearchOpen && (
+        <form onSubmit={handleSearch} className="border-t border-delvis-line px-4 py-2.5 sm:hidden">
+          <div className="flex items-center gap-2 rounded-full border border-delvis-line px-3.5 py-2">
+            <SearchIcon />
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Pesquisar notícias"
+              aria-label="Pesquisar notícias"
+              autoFocus
+              className="w-full bg-transparent text-[13px] font-medium text-delvis-ink placeholder:text-delvis-mute focus:outline-none"
+            />
+          </div>
+        </form>
+      )}
+
       <nav className="border-b-2 border-delvis-ink">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 sm:px-6">
-          <div className="flex flex-wrap items-center gap-1 overflow-x-auto">
+          <div className="flex items-center gap-1 overflow-x-auto">
             <Link
               to="/"
-              className={`whitespace-nowrap px-3.5 py-2.5 font-display text-[13px] font-medium uppercase tracking-wide ${
+              className={`shrink-0 whitespace-nowrap px-3.5 py-2.5 font-display text-[13px] font-medium uppercase tracking-wide ${
                 !activeCategory ? 'bg-delvis-ink text-white' : 'text-delvis-ink hover:text-delvis-teal'
               }`}
             >
@@ -127,7 +161,7 @@ export function PublicHeader() {
               <Link
                 key={category}
                 to={`/?categoria=${encodeURIComponent(category)}`}
-                className={`whitespace-nowrap px-3.5 py-2.5 font-display text-[13px] font-medium uppercase tracking-wide ${
+                className={`shrink-0 whitespace-nowrap px-3.5 py-2.5 font-display text-[13px] font-medium uppercase tracking-wide ${
                   activeCategory === category ? 'bg-delvis-ink text-white' : 'text-delvis-ink hover:text-delvis-teal'
                 }`}
               >

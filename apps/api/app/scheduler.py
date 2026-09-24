@@ -131,7 +131,17 @@ async def recover_stuck_topics() -> None:
         .execute()
     )
     for topic in stuck_res.data or []:
+        reason = (
+            f"processo reiniciado (ou crash) a meio da geração — ficou preso em "
+            f"'processing' há mais de {settings.stale_processing_minutes}min sem terminar"
+        )
         supabase.table("topics").update({"status": "failed"}).eq("id", topic["id"]).execute()
+        # sem isto, o job desta tentativa ficava 'running' para sempre, sem
+        # `error` nenhum — o painel mostrava o topic como falhado mas sem
+        # nenhum erro técnico associado a explicar porquê.
+        supabase.table("jobs").update({"status": "failed", "error": reason}).eq("topic_id", topic["id"]).eq(
+            "status", "running"
+        ).execute()
         log_error(
             "recover_stuck_topics",
             f'topic "{topic["term"]}" ({topic["id"]}) preso em processing há mais de '
@@ -301,13 +311,15 @@ async def auto_publish_ready() -> None:
     quando o piloto automático está ligado (a decisão humana passa a ser ligar
     o interruptor, não cada aprovação — ver docs/publicador/EDITORIAL.md §9).
 
-    Continua a respeitar os limites de ritmo: max_published_per_day e
-    min_minutes_between_publications são impostos pela BD (enforce_review_gate)
-    -- ao serem atingidos, o UPDATE seguinte simplesmente falha e este ciclo
-    para, tentando de novo no próximo tick. max_per_source_per_day e
-    require_manual_edit_every_n não têm equivalente na BD (ver TASKS.md) e são
-    verificados aqui: o segundo por contagem, o primeiro reservando 1 em cada N
-    artigos prontos para revisão manual em vez de os publicar sozinho.
+    Continua a respeitar max_published_per_day, imposto pela BD
+    (enforce_review_gate) -- ao ser atingido, o UPDATE seguinte simplesmente
+    falha e este ciclo para, tentando de novo no próximo tick.
+    max_per_source_per_day e require_manual_edit_every_n não têm equivalente na
+    BD (ver TASKS.md) e são verificados aqui: o primeiro por contagem, o
+    segundo reservando 1 em cada N artigos prontos para revisão manual em vez
+    de os publicar sozinho. (Existiu também min_minutes_between_publications —
+    removido a pedido do operador, não interessava espaçar publicações no
+    tempo.)
     """
     cfg = _settings_map(["publishing_limits", AUTOPILOT_KEY])
     limits = cfg.get("publishing_limits") or {}

@@ -218,28 +218,31 @@ export default function Automacao() {
             <h3 className="text-xs font-semibold uppercase tracking-wide text-red-700">
               Falhas de geração ({failedTopics.length})
             </h3>
-            {failedTopics.map((t) => (
-              <div
-                key={t.id}
-                className="flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm"
-              >
-                <div className="min-w-0">
-                  <p className="truncate font-medium text-slate-800">{t.term}</p>
-                  {lastErrorByTopic.get(t.id) && (
-                    <p className="truncate text-xs text-red-600" title={lastErrorByTopic.get(t.id)}>
-                      {lastErrorByTopic.get(t.id)}
-                    </p>
+            {failedTopics.map((t) => {
+              const techError = lastErrorByTopic.get(t.id)
+              return (
+                <div key={t.id} className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="min-w-0 truncate font-medium text-slate-800">{t.term}</p>
+                    <button
+                      onClick={() => retryTopic.mutate(t.id)}
+                      disabled={retryTopic.isPending}
+                      className="shrink-0 rounded-md bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                    >
+                      Tentar novamente
+                    </button>
+                  </div>
+                  {techError && (
+                    <details className="mt-1">
+                      <summary className="cursor-pointer text-xs font-medium text-red-700">Erro técnico</summary>
+                      <pre className="mt-1 whitespace-pre-wrap break-words rounded bg-white/60 p-2 text-xs text-red-800">
+                        {techError}
+                      </pre>
+                    </details>
                   )}
                 </div>
-                <button
-                  onClick={() => retryTopic.mutate(t.id)}
-                  disabled={retryTopic.isPending}
-                  className="shrink-0 rounded-md bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
-                >
-                  Tentar novamente
-                </button>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
 
