@@ -25,7 +25,10 @@ export function useAnalytics(granted: boolean): void {
     injected = true
 
     window.dataLayer = window.dataLayer || []
-    const gtag = (...args: unknown[]) => window.dataLayer!.push(args)
+    function gtag(..._args: unknown[]) {
+      // eslint-disable-next-line prefer-rest-params -- espelha o snippet oficial do gtag.js à letra
+      window.dataLayer!.push(arguments)
+    }
     gtag('js', new Date())
     gtag('config', measurementId)
 
