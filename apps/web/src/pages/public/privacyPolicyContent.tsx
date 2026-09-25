@@ -3,7 +3,7 @@ import type { Lang } from '../../lib/i18n'
 
 /**
  * Conteúdo traduzido da /politica-de-privacidade. O PrivacyPolicy.tsx renderiza
- * `<content.Body onManageCookies={consent.reset} />` dentro da div `prose`.
+ * `<content.Body onManageCookies={openConsentSettings} />` dentro da div `prose`.
  *
  * Nota: o corpo atual não tem links internos (`<Link>`) — só links externos (Google)
  * e um mailto — por isso não precisa de `localizedPath`. Se algum dia se juntar um
@@ -36,8 +36,10 @@ function BodyPt(_props: BodyProps): JSX.Element {
 
       <h2>Cookies e ferramentas de terceiros</h2>
       <p>
-        Só carregamos as ferramentas seguintes depois de aceitares no aviso que aparece na primeira visita.
-        Podes mudar de ideias a qualquer momento no rodapé ("Gerir cookies").
+        Usamos as ferramentas seguintes. Se estiveres na União Europeia, no Reino Unido ou na Suíça, a Google
+        mostra-te na primeira visita uma mensagem de consentimento (certificada pelo IAB TCF) e, até decidires,
+        nenhuma delas grava cookies. Noutros países ficam ativas por omissão. Podes rever a tua escolha a
+        qualquer momento no rodapé ("Gerir cookies").
       </p>
       <ul>
         <li>
@@ -65,8 +67,9 @@ function BodyPt(_props: BodyProps): JSX.Element {
 
       <h2>Se rejeitares</h2>
       <p>
-        O site funciona na mesma, por completo — a rejeição só impede o Analytics e o AdSense (que nem chegam a
-        carregar). Podes continuar a ler e pesquisar notícias sem qualquer limitação.
+        O site funciona na mesma, por completo. O Analytics deixa de gravar cookies e passa a enviar só medições
+        anónimas, sem identificadores; os anúncios continuam a aparecer, mas não personalizados. Podes continuar
+        a ler e pesquisar notícias sem qualquer limitação.
       </p>
 
       <h2>Os teus direitos</h2>
@@ -105,8 +108,10 @@ function BodyEn(_props: BodyProps): JSX.Element {
 
       <h2>Cookies and third-party tools</h2>
       <p>
-        We only load the following tools after you accept them in the notice shown on your first visit. You can
-        change your mind at any time from the footer ("Manage cookies").
+        We use the following tools. If you are in the European Union, the United Kingdom or Switzerland, Google
+        shows you a consent message (IAB TCF certified) on your first visit and, until you decide, neither of them
+        sets cookies. In other countries they are active by default. You can review your choice at any time from
+        the footer ("Manage cookies").
       </p>
       <ul>
         <li>
@@ -134,8 +139,9 @@ function BodyEn(_props: BodyProps): JSX.Element {
 
       <h2>If you reject</h2>
       <p>
-        The site still works fully — rejecting only blocks Analytics and AdSense (which are not loaded at all).
-        You can keep reading and searching the news without any limitation.
+        The site still works fully. Analytics stops setting cookies and only sends anonymous measurements, with no
+        identifiers; ads still appear, but they are not personalised. You can keep reading and searching the news
+        without any limitation.
       </p>
 
       <h2>Your rights</h2>
@@ -173,8 +179,10 @@ function BodyEs(_props: BodyProps): JSX.Element {
 
       <h2>Cookies y herramientas de terceros</h2>
       <p>
-        Solo cargamos las siguientes herramientas después de que las aceptes en el aviso que aparece en tu primera
-        visita. Puedes cambiar de opinión en cualquier momento desde el pie de página ("Gestionar cookies").
+        Usamos las siguientes herramientas. Si estás en la Unión Europea, el Reino Unido o Suiza, Google te muestra
+        en tu primera visita un mensaje de consentimiento (certificado por el IAB TCF) y, hasta que decidas,
+        ninguna de ellas guarda cookies. En otros países están activas por defecto. Puedes revisar tu elección en
+        cualquier momento desde el pie de página ("Gestionar cookies").
       </p>
       <ul>
         <li>
@@ -202,8 +210,9 @@ function BodyEs(_props: BodyProps): JSX.Element {
 
       <h2>Si las rechazas</h2>
       <p>
-        El sitio sigue funcionando por completo — el rechazo solo impide Analytics y AdSense (que ni siquiera
-        llegan a cargarse). Puedes seguir leyendo y buscando noticias sin ninguna limitación.
+        El sitio sigue funcionando por completo. Analytics deja de guardar cookies y solo envía mediciones
+        anónimas, sin identificadores; los anuncios siguen apareciendo, pero no personalizados. Puedes seguir
+        leyendo y buscando noticias sin ninguna limitación.
       </p>
 
       <h2>Tus derechos</h2>
@@ -244,8 +253,10 @@ function BodyFr(_props: BodyProps): JSX.Element {
 
       <h2>Cookies et outils tiers</h2>
       <p>
-        Nous ne chargeons les outils suivants qu'après votre acceptation dans l'avis affiché lors de votre première
-        visite. Vous pouvez changer d'avis à tout moment depuis le pied de page (« Gérer les cookies »).
+        Nous utilisons les outils suivants. Si vous êtes dans l'Union européenne, au Royaume-Uni ou en Suisse,
+        Google vous affiche lors de votre première visite un message de consentement (certifié IAB TCF) et, tant que
+        vous n'avez pas choisi, aucun d'eux ne dépose de cookies. Dans les autres pays, ils sont actifs par défaut.
+        Vous pouvez revoir votre choix à tout moment depuis le pied de page (« Gérer les cookies »).
       </p>
       <ul>
         <li>
@@ -274,9 +285,9 @@ function BodyFr(_props: BodyProps): JSX.Element {
 
       <h2>Si vous refusez</h2>
       <p>
-        Le site fonctionne tout de même, entièrement — le refus empêche uniquement Analytics et AdSense (qui ne
-        sont même pas chargés). Vous pouvez continuer à lire et à rechercher des actualités sans aucune
-        restriction.
+        Le site fonctionne tout de même, entièrement. Analytics ne dépose plus de cookies et n'envoie que des
+        mesures anonymes, sans identifiants ; les publicités continuent de s'afficher, mais ne sont pas
+        personnalisées. Vous pouvez continuer à lire et à rechercher des actualités sans aucune restriction.
       </p>
 
       <h2>Vos droits</h2>
@@ -300,22 +311,22 @@ function BodyFr(_props: BodyProps): JSX.Element {
 export const PRIVACY_CONTENT: Record<Lang, PrivacyContent> = {
   pt: {
     title: 'Política de privacidade',
-    updated: 'Última atualização: 24 de setembro de 2026.',
+    updated: 'Última atualização: 25 de setembro de 2026.',
     Body: BodyPt,
   },
   en: {
     title: 'Privacy policy',
-    updated: 'Last updated: September 24, 2026.',
+    updated: 'Last updated: September 25, 2026.',
     Body: BodyEn,
   },
   es: {
     title: 'Política de privacidad',
-    updated: 'Última actualización: 24 de septiembre de 2026.',
+    updated: 'Última actualización: 25 de septiembre de 2026.',
     Body: BodyEs,
   },
   fr: {
     title: 'Politique de confidentialité',
-    updated: 'Dernière mise à jour : 24 septembre 2026.',
+    updated: 'Dernière mise à jour : 25 septembre 2026.',
     Body: BodyFr,
   },
 }

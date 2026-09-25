@@ -129,9 +129,15 @@ backend via `service_role` (piloto automático ligado).
   `noindex` em pesquisas, categorias com <3 artigos e `/admin`. Se o Supabase falhar
   durante o SSR, cai para a SPA vazia (o browser renderiza sozinho). Domínio
   canónico: env `SITE_URL` (produção: `https://footballtrend.online`). Tudo o que só
-  o browser sabe (fuso horário, "há 5 min", consentimento de cookies) só aparece
+  o browser sabe (fuso horário, "há 5 min") só aparece
   depois de hidratar — `useHydrated()` em `src/lib/hydration.ts` — para o HTML do
   servidor e o do cliente não divergirem.
+- **Anúncios e consentimento:** AdSense (Auto ads) e Google Analytics só no site
+  público. O consentimento é pedido pela CMP certificada da Google (AdSense →
+  Privacidade e mensagens), que vem dentro do script do AdSense — por isso esse
+  script carrega sempre. O Analytics usa Consent Mode v2: `denied` por omissão na
+  UE/EEE, Reino Unido e Suíça até a CMP o atualizar (`src/lib/consent.ts`).
+  Verificação do site: meta `google-adsense-account` no `<head>` do SSR + `ads.txt`.
 - **Painel `/admin/*`** não é renderizado no servidor (depende da sessão, que só
   existe no browser): o servidor devolve o `#root` vazio com `noindex` e o cliente
   faz render normal.

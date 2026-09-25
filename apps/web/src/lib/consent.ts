@@ -1,67 +1,65 @@
-import { useSyncExternalStore } from 'react'
-
 /**
- * Consentimento de cookies não essenciais (Analytics, AdSense) — só no site
- * público. Enquanto não houver decisão (ou se for "rejeitado"), nenhum
- * script de rastreio é sequer carregado (ver useAdSense/useAnalytics) — não
- * é só escondido, é omitido do DOM. Guardado em localStorage, por isso
- * sobrevive a visitas seguintes sem voltar a perguntar.
+ * Consentimento de cookies — gerido pela CMP certificada da Google (AdSense →
+ * "Privacidade e mensagens" → RGPD), não por um banner nosso. O Google exige
+ * uma CMP certificada (TCF) para servir anúncios na UE/EEE, Reino Unido e
+ * Suíça; a mensagem vem dentro do próprio script do AdSense (lib/adsense.ts),
+ * por isso esse script carrega sempre — é ele que pergunta.
  *
- * Estado partilhado a sério (useSyncExternalStore), não um useState por
- * componente — PublicHeader (mostra o banner) e PublicFooter (link "Gerir
- * cookies") são irmãos, não pai/filho, e têm de reagir um ao outro.
+ * O Google Analytics (lib/analytics.ts) segue o Consent Mode v2: nessas regiões
+ * arranca com tudo `denied` (sem cookies, só pings anónimos) e a CMP da Google
+ * atualiza o estado quando o leitor decide. Fora delas, `granted` por omissão —
+ * a CMP da Google também não mostra mensagem aí.
  */
 
-const CONSENT_KEY = 'ft-cookie-consent'
-type ConsentValue = 'accepted' | 'rejected'
-
-function readStored(): ConsentValue | null {
-  try {
-    const v = localStorage.getItem(CONSENT_KEY)
-    return v === 'accepted' || v === 'rejected' ? v : null
-  } catch {
-    return null
+declare global {
+  interface Window {
+    dataLayer?: unknown[]
+    googlefc?: { callbackQueue?: unknown[]; showRevocationMessage?: () => void }
   }
 }
 
-let current: ConsentValue | null = readStored()
-const listeners = new Set<() => void>()
+/** UE/EEE (27 + Islândia, Liechtenstein, Noruega), Reino Unido e Suíça — ISO 3166-1. */
+const CONSENT_REQUIRED_REGIONS = [
+  'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 'GR', 'HU', 'IE', 'IT', 'LV', 'LT',
+  'LU', 'MT', 'NL', 'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE', 'IS', 'LI', 'NO', 'GB', 'CH',
+]
 
-function setStored(value: ConsentValue | null): void {
-  current = value
-  try {
-    if (value === null) localStorage.removeItem(CONSENT_KEY)
-    else localStorage.setItem(CONSENT_KEY, value)
-  } catch {
-    // localStorage indisponível — a decisão fica só em memória, dura a visita
-  }
-  for (const listener of listeners) listener()
+/** O `gtag` oficial: empurra o objeto `arguments` (não um array) para o dataLayer. */
+export function gtag(..._args: unknown[]): void {
+  window.dataLayer = window.dataLayer || []
+  // eslint-disable-next-line prefer-rest-params -- espelha o snippet oficial do gtag.js à letra
+  window.dataLayer.push(arguments)
 }
 
-function subscribe(listener: () => void): () => void {
-  listeners.add(listener)
-  return () => listeners.delete(listener)
+let defaultsSet = false
+
+/** Tem de correr antes de qualquer tag da Google (Analytics, AdSense). Idempotente. */
+export function ensureConsentDefaults(): void {
+  if (defaultsSet) return
+  defaultsSet = true
+  gtag('consent', 'default', {
+    ad_storage: 'denied',
+    ad_user_data: 'denied',
+    ad_personalization: 'denied',
+    analytics_storage: 'denied',
+    region: CONSENT_REQUIRED_REGIONS,
+    wait_for_update: 500, // dá tempo à CMP para aplicar uma escolha já feita numa visita anterior
+  })
+  gtag('consent', 'default', {
+    ad_storage: 'granted',
+    ad_user_data: 'granted',
+    ad_personalization: 'granted',
+    analytics_storage: 'granted',
+  })
 }
 
-function getSnapshot(): ConsentValue | null {
-  return current
-}
-
-/** No servidor (SSR) e durante a hidratação a decisão ainda é desconhecida —
- * `undefined`, não `null`, para o banner não aparecer no HTML do servidor e
- * depois desaparecer a quem já tinha aceitado. */
-function getServerSnapshot(): undefined {
-  return undefined
-}
-
-export function useConsent() {
-  const status = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
-  return {
-    status,
-    granted: status === 'accepted',
-    accept: () => setStored('accepted'),
-    reject: () => setStored('rejected'),
-    /** Reabre o banner para mudar de ideias (link "Gerir cookies" no rodapé). */
-    reset: () => setStored(null),
-  }
+/**
+ * Reabre a mensagem de consentimento da Google (link "Gerir cookies"). A fila
+ * `callbackQueue` corre a função assim que a CMP estiver carregada — funciona
+ * mesmo que o clique chegue antes do script.
+ */
+export function openConsentSettings(): void {
+  const googlefc = (window.googlefc = window.googlefc || {})
+  googlefc.callbackQueue = googlefc.callbackQueue || []
+  googlefc.callbackQueue.push(() => window.googlefc?.showRevocationMessage?.())
 }

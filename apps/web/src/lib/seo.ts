@@ -82,9 +82,9 @@ export function renderHeadTags(head: HeadData, siteUrl: string): string {
 
   meta('name', 'description', head.description)
   // Verificação do site no AdSense: o robot do Google procura o ID do editor no
-  // HTML. O script do AdSense só carrega depois do consentimento (lib/adsense.ts),
-  // por isso o robot nunca o veria — a meta tag não é script nem cookie, pode ir
-  // sempre, sem consentimento. Sem VITE_ADSENSE_CLIENT_ID (dev), não sai.
+  // HTML do servidor — o script do AdSense é injetado pelo browser depois de
+  // hidratar (lib/adsense.ts), por isso não está lá. A meta tag não é script
+  // nem cookie. Sem VITE_ADSENSE_CLIENT_ID (dev), não sai.
   meta('name', 'google-adsense-account', import.meta.env.VITE_ADSENSE_CLIENT_ID as string | undefined)
   meta('name', 'robots', head.noindex ? 'noindex, follow' : 'index, follow, max-image-preview:large')
   if (canonical) tags.push(`<link rel="canonical" href="${escapeHtml(canonical)}" />`)

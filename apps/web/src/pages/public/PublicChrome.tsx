@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-do
 import { useQuery } from '@tanstack/react-query'
 import { useAdSense } from '../../lib/adsense'
 import { useAnalytics } from '../../lib/analytics'
-import { useConsent } from '../../lib/consent'
+import { openConsentSettings } from '../../lib/consent'
 import { useHydrated } from '../../lib/hydration'
 import {
   type Alternate,
@@ -150,9 +150,10 @@ function LanguageSwitcher({ alternates }: { alternates?: Alternate[] }) {
 }
 
 export function PublicHeader({ alternates }: { alternates?: Alternate[] } = {}) {
-  const consent = useConsent()
-  useAdSense(consent.granted) // só carrega no site público — nunca no painel /admin — e só com consentimento
-  useAnalytics(consent.granted) // idem
+  // só no site público — nunca no painel /admin. O consentimento é pedido pela
+  // CMP da Google, que vem com o script do AdSense (ver lib/consent.ts)
+  useAdSense()
+  useAnalytics()
   const lang = useLang()
   const t = useT()
   const [searchParams] = useSearchParams()
@@ -259,52 +260,11 @@ export function PublicHeader({ alternates }: { alternates?: Alternate[] } = {}) 
         </div>
       </nav>
       </header>
-      {consent.status === null && <CookieBanner onAccept={consent.accept} onReject={consent.reject} />}
     </>
   )
 }
 
-function CookieBanner({ onAccept, onReject }: { onAccept: () => void; onReject: () => void }) {
-  const lang = useLang()
-  const t = useT()
-  return (
-    <div
-      role="dialog"
-      aria-label={t('cookieAria')}
-      className="fixed inset-x-0 bottom-0 z-20 border-t border-delvis-line bg-white px-4 py-4 shadow-[0_-4px_16px_rgba(15,30,35,0.12)] sm:px-6"
-    >
-      <div className="mx-auto flex max-w-5xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-xs font-medium leading-relaxed text-delvis-mute sm:max-w-2xl">
-          {t('cookieText')}{' '}
-          <Link
-            to={localizedPath(lang, '/politica-de-privacidade')}
-            className="font-semibold text-delvis-teal underline hover:text-delvis-teal-600"
-          >
-            {t('learnMore')}
-          </Link>
-          .
-        </p>
-        <div className="flex shrink-0 gap-2">
-          <button
-            onClick={onReject}
-            className="rounded-md border border-delvis-line px-4 py-2 text-xs font-semibold text-delvis-ink hover:bg-delvis-surface"
-          >
-            {t('reject')}
-          </button>
-          <button
-            onClick={onAccept}
-            className="rounded-md bg-delvis-ink px-4 py-2 text-xs font-semibold text-white hover:bg-delvis-teal"
-          >
-            {t('accept')}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 export function PublicFooter() {
-  const consent = useConsent()
   const lang = useLang()
   const t = useT()
   return (
@@ -327,7 +287,7 @@ export function PublicFooter() {
           <Link to={localizedPath(lang, '/politica-de-privacidade')} className="hover:text-delvis-teal hover:underline">
             {t('privacyPolicy')}
           </Link>
-          <button type="button" onClick={consent.reset} className="hover:text-delvis-teal hover:underline">
+          <button type="button" onClick={openConsentSettings} className="hover:text-delvis-teal hover:underline">
             {t('manageCookies')}
           </button>
         </div>

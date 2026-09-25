@@ -1,14 +1,13 @@
 import { Link } from 'react-router-dom'
-import { useConsent } from '../../lib/consent'
+import { openConsentSettings } from '../../lib/consent'
 import { localizedPath, useLang, useT } from '../../lib/i18n'
 import { PublicFooter, PublicHeader } from './PublicChrome'
 import { PRIVACY_CONTENT } from './privacyPolicyContent'
 
-/** /politica-de-privacidade — sem login. Ver lib/consent.ts para o banner que a referencia.
+/** /politica-de-privacidade — sem login. O consentimento é gerido pela CMP da Google (lib/consent.ts).
  * O texto de cada língua vive em privacyPolicyContent.tsx. */
 
 export default function PrivacyPolicy() {
-  const consent = useConsent()
   const lang = useLang()
   const t = useT()
   const content = PRIVACY_CONTENT[lang]
@@ -28,19 +27,14 @@ export default function PrivacyPolicy() {
         <p className="mt-2 text-sm text-delvis-mute">{content.updated}</p>
 
         <div className="prose prose-slate mt-8 max-w-none font-body prose-headings:font-display prose-headings:font-medium prose-headings:text-delvis-ink prose-a:font-semibold prose-a:text-delvis-teal prose-strong:text-delvis-ink">
-          <content.Body onManageCookies={consent.reset} />
+          <content.Body onManageCookies={openConsentSettings} />
         </div>
 
-        {consent.status !== null && (
-          <p className="mt-8 border-t border-delvis-line pt-4 text-xs text-delvis-mute">
-            {t('yourChoice')} {consent.status === 'accepted' ? t('youAccepted') : t('youRejected')}{' '}
-            {t('nonEssentialCookies')}{' '}
-            <button type="button" onClick={consent.reset} className="font-semibold text-delvis-teal underline">
-              {t('change')}
-            </button>
-            .
-          </p>
-        )}
+        <p className="mt-8 border-t border-delvis-line pt-4 text-xs text-delvis-mute">
+          <button type="button" onClick={openConsentSettings} className="font-semibold text-delvis-teal underline">
+            {t('manageCookies')}
+          </button>
+        </p>
       </main>
       <PublicFooter />
     </div>
