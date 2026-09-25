@@ -122,6 +122,28 @@ export function renderHeadTags(head: HeadData, siteUrl: string): string {
  * §1, Opção B) — por isso `Organization`; o `editor` é a pessoa real
  * responsável. `isBasedOn` aponta para a notícia original (guardrail #2).
  */
+/**
+ * `WebSite` na home de cada língua — é daqui (e do favicon) que o Google tira o
+ * nome do site que mostra na Pesquisa e no Google Notícias; o Publisher Center
+ * deixou de o controlar em 2025. O `url` é sempre a raiz, a mesma entidade em
+ * todas as línguas.
+ */
+export function websiteJsonLd(lang: Lang, siteUrl: string): Record<string, unknown> {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: SITE_NAME,
+    url: `${siteUrl}/`,
+    inLanguage: lang,
+    publisher: {
+      '@type': 'Organization',
+      name: PUBLISHER_NAME,
+      url: siteUrl,
+      logo: { '@type': 'ImageObject', url: `${siteUrl}/logo.png`, width: 512, height: 512 },
+    },
+  }
+}
+
 export function newsArticleJsonLd(article: PublishedArticle, siteUrl: string): Record<string, unknown> {
   const lang = article.lang as Lang
   const url = `${siteUrl}${articlePath(lang, article.slug)}`

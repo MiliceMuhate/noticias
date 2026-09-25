@@ -8,6 +8,7 @@ import {
   articlesQuery,
   categoriesQuery,
   editorQuery,
+  fetchNewsSitemapEntries,
   fetchSitemapEntries,
   findArticleInAnyLang,
 } from './lib/publicData'
@@ -20,6 +21,7 @@ import {
   everyLangAlternates,
   type HeadData,
   newsArticleJsonLd,
+  websiteJsonLd,
   renderHeadTags,
   serializeForScript,
   SITE_NAME,
@@ -105,6 +107,7 @@ export async function render(url: string, siteUrl: string): Promise<RenderResult
             // resultados de pesquisa: rastreáveis (os links seguem), nunca indexados
             noindex: !!search,
             alternates: everyLangAlternates('/', LANGS),
+            jsonLd: search ? undefined : websiteJsonLd(lang, siteUrl),
           }
     } else if (articleMatch) {
       const slug = safeDecode(articleMatch[1]!)
@@ -251,6 +254,38 @@ export async function renderSitemap(siteUrl: string): Promise<string> {
   ]
   return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+${urls.join('\n')}
+</urlset>
+`
+}
+
+/**
+ * Sitemap do Google Notícias (/news-sitemap.xml) — formato
+ * https://developers.google.com/search/docs/crawling-indexing/sitemaps/news-sitemap.
+ * `news:name` tem de ser exatamente o nome da publicação registado no Google
+ * Publisher Center; `news:language` é o código ISO 639 de cada artigo.
+ */
+export async function renderNewsSitemap(siteUrl: string): Promise<string> {
+  const entries = await fetchNewsSitemapEntries()
+  const urls = entries
+    .filter((entry) => entry.title && entry.published_at)
+    .map((entry) => {
+      const lang = entry.lang as Lang
+      const loc = escapeXml(`${siteUrl}${articlePath(lang, entry.slug)}`)
+      return `  <url>
+    <loc>${loc}</loc>
+    <news:news>
+      <news:publication>
+        <news:name>${escapeXml(SITE_NAME)}</news:name>
+        <news:language>${escapeXml(lang)}</news:language>
+      </news:publication>
+      <news:publication_date>${escapeXml(entry.published_at!)}</news:publication_date>
+      <news:title>${escapeXml(entry.title!)}</news:title>
+    </news:news>
+  </url>`
+    })
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">
 ${urls.join('\n')}
 </urlset>
 `

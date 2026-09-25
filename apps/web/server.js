@@ -175,6 +175,7 @@ app.get('/robots.txt', (req, res) => {
 Disallow: /admin
 
 Sitemap: ${siteUrlFor(req)}/sitemap.xml
+Sitemap: ${siteUrlFor(req)}/news-sitemap.xml
 `)
 })
 
@@ -185,6 +186,18 @@ app.get('/sitemap.xml', async (req, res) => {
     res.type('application/xml').set('Cache-Control', 'public, max-age=600').send(xml)
   } catch (err) {
     console.error('[web] falha a gerar sitemap.xml:', err)
+    res.status(503).set('Retry-After', '300').type('text/plain').send('sitemap temporariamente indisponível')
+  }
+})
+
+// Google Notícias: só as últimas 48 h — cache curta, muda a cada artigo publicado
+app.get('/news-sitemap.xml', async (req, res) => {
+  try {
+    const { renderNewsSitemap } = await loadServerEntry()
+    const xml = await renderNewsSitemap(siteUrlFor(req))
+    res.type('application/xml').set('Cache-Control', 'public, max-age=300').send(xml)
+  } catch (err) {
+    console.error('[web] falha a gerar news-sitemap.xml:', err)
     res.status(503).set('Retry-After', '300').type('text/plain').send('sitemap temporariamente indisponível')
   }
 })

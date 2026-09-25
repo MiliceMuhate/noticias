@@ -131,3 +131,27 @@ export async function fetchSitemapEntries(): Promise<SitemapEntry[]> {
     if (data.length < pageSize) return entries
   }
 }
+
+/**
+ * Sitemap do Google Notícias: só artigos das últimas 48 horas (o Google ignora
+ * os mais antigos) e no máximo 1000 URLs por ficheiro — com o volume atual,
+ * nunca se chega lá, por isso basta um `limit`.
+ */
+export interface NewsSitemapEntry {
+  slug: string
+  lang: string
+  title: string | null
+  published_at: string | null
+}
+
+export async function fetchNewsSitemapEntries(): Promise<NewsSitemapEntry[]> {
+  const since = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString()
+  const { data, error } = await supabase
+    .from('published_articles')
+    .select('slug, lang, title, published_at')
+    .gte('published_at', since)
+    .order('published_at', { ascending: false })
+    .limit(1000)
+  if (error) throw new Error(error.message)
+  return data
+}

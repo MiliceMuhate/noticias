@@ -125,7 +125,8 @@ backend via `service_role` (piloto automático ligado).
   `<head>` (title, description, canonical, Open Graph, JSON-LD `NewsArticle` com
   `isBasedOn` → fonte — `src/lib/seo.ts`). O estado do TanStack Query segue em
   `window.__RQ_STATE__` e `src/entry-client.tsx` hidrata sem novo pedido. Também
-  serve `/sitemap.xml` e `/robots.txt`. Respostas: 404 para artigo/rota inexistente;
+  serve `/sitemap.xml`, `/news-sitemap.xml` (Google Notícias: só artigos das últimas
+  48 h, `news:name` = `SITE_NAME`, tem de coincidir com o Publisher Center) e `/robots.txt`. Respostas: 404 para artigo/rota inexistente;
   `noindex` em pesquisas, categorias com <3 artigos e `/admin`. Se o Supabase falhar
   durante o SSR, cai para a SPA vazia (o browser renderiza sozinho). Domínio
   canónico: env `SITE_URL` (produção: `https://footballtrend.online`). Tudo o que só
