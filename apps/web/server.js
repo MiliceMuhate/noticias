@@ -56,13 +56,31 @@ async function loadServerEntry() {
   return vite.ssrLoadModule('/src/entry-server.tsx')
 }
 
+if (isProduction) {
+  // falha a carregar o bundle SSR fica logo visível no arranque (docker compose
+  // logs web), em vez de só aparecer no primeiro pedido — o servidor continua
+  // de pé a servir a SPA (ver fallback no fim)
+  loadServerEntry().catch((err) => console.error('[web] bundle SSR não carregou — a servir só a SPA:', err))
+}
+
+// Qualquer erro que escape a uma rota não pode derrubar o processo (o Express 4
+// não apanha promises rejeitadas; sem isto o Node termina e o container reinicia).
+process.on('unhandledRejection', (err) => console.error('[web] promise rejeitada sem tratamento:', err))
+
 app.get('/healthz', (_req, res) => {
   res.type('text/plain').send('ok')
 })
 
-app.get('/robots.txt', async (req, res) => {
-  const { renderRobots } = await loadServerEntry()
-  res.type('text/plain').set('Cache-Control', 'public, max-age=3600').send(renderRobots(siteUrlFor(req)))
+// não depende do bundle SSR nem do Supabase — responde sempre
+app.get('/robots.txt', (req, res) => {
+  res
+    .type('text/plain')
+    .set('Cache-Control', 'public, max-age=3600')
+    .send(`User-agent: *
+Disallow: /admin
+
+Sitemap: ${siteUrlFor(req)}/sitemap.xml
+`)
 })
 
 app.get('/sitemap.xml', async (req, res) => {
@@ -99,8 +117,17 @@ app.use(async (req, res) => {
     res.end(page)
   } catch (err) {
     vite?.ssrFixStacktrace(err)
-    console.error('[web] erro no SSR:', err)
-    res.status(500).type('text/plain').end('Erro interno')
+    console.error(`[web] erro no SSR de ${req.originalUrl} — a servir a SPA:`, err)
+    if (!template) {
+      res.status(500).type('text/plain').end('Erro interno')
+      return
+    }
+    // mesmo comportamento de antes do SSR: #root vazio, o browser renderiza sozinho
+    const page = template
+      .replace('<!--app-head-->', '<title>footballtrend — Notícias de Futebol</title>')
+      .replace('<!--app-html-->', '')
+      .replace('<!--app-state-->', '')
+    res.status(200).set('Content-Type', 'text/html; charset=utf-8').set('Cache-Control', 'no-store').end(page)
   }
 })
 

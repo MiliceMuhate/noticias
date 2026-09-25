@@ -165,11 +165,3 @@ ${urls.join('\n')}
 </urlset>
 `
 }
-
-export function renderRobots(siteUrl: string): string {
-  return `User-agent: *
-Disallow: /admin
-
-Sitemap: ${siteUrl}/sitemap.xml
-`
-}

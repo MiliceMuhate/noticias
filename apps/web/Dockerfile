@@ -1,6 +1,8 @@
 # apps/web — build de contexto na RAIZ do monorepo (precisa de pnpm-workspace.yaml
 # e packages/shared): docker build -f apps/web/Dockerfile .
-FROM node:20-slim AS build
+# Node 22+: a @supabase/supabase-js (>=2.1xx) precisa do WebSocket nativo do
+# Node 22 — com o 20 o bundle SSR rebenta ao importar (createClient).
+FROM node:22-slim AS build
 RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 WORKDIR /repo
 
@@ -27,7 +29,7 @@ RUN pnpm --filter web build
 # do package.json) + node_modules sem devDependencies
 RUN pnpm --filter web deploy --prod /out
 
-FROM node:20-slim AS runtime
+FROM node:22-slim AS runtime
 ENV NODE_ENV=production \
     PORT=3000
 WORKDIR /app

@@ -87,7 +87,7 @@ export function newsArticleJsonLd(article: PublishedArticle, siteUrl: string): R
     '@type': 'Organization',
     name: SITE_NAME,
     url: siteUrl,
-    logo: { '@type': 'ImageObject', url: `${siteUrl}/favicon.svg` },
+    logo: { '@type': 'ImageObject', url: `${siteUrl}/logo.png`, width: 512, height: 512 },
   }
   return {
     '@context': 'https://schema.org',
