@@ -19,6 +19,7 @@ modelo vêm de settings.model_by_step (ver resolve_step).
 from __future__ import annotations
 
 import asyncio
+import datetime
 import hashlib
 import json
 import re
@@ -45,6 +46,28 @@ ProviderKind = Literal["anthropic", "openai_compatible"]
 class ModelPricing:
     input_usd_per_mtok: float | None = None
     output_usd_per_mtok: float | None = None
+    # preços que mudam numa data (ex.: Gemini 3.8 Flash duplica a 2027-01-01):
+    # [(data, entrada, saída)], ordenados — vale o mais recente já em vigor
+    changes: list[tuple[datetime.date, float, float]] = field(default_factory=list)
+
+    def at(self, day: datetime.date) -> tuple[float | None, float | None]:
+        price_in, price_out = self.input_usd_per_mtok, self.output_usd_per_mtok
+        for start, change_in, change_out in self.changes:
+            if start <= day:
+                price_in, price_out = change_in, change_out
+        return price_in, price_out
+
+
+def _parse_price_changes(raw: Any) -> list[tuple[datetime.date, float, float]]:
+    changes: list[tuple[datetime.date, float, float]] = []
+    for c in raw or []:
+        try:
+            changes.append(
+                (datetime.date.fromisoformat(c["from"]), float(c["input_usd_per_mtok"]), float(c["output_usd_per_mtok"]))
+            )
+        except (KeyError, TypeError, ValueError):
+            continue  # mudança incompleta no painel — ignora, fica o preço base
+    return sorted(changes)
 
 
 @dataclass
@@ -119,7 +142,9 @@ def _parse_provider(raw: dict[str, Any]) -> Provider | None:
         models: dict[str, ModelPricing] = {}
         for m in raw.get("models") or []:
             if isinstance(m, dict) and m.get("id"):
-                models[m["id"]] = ModelPricing(m.get("input_usd_per_mtok"), m.get("output_usd_per_mtok"))
+                models[m["id"]] = ModelPricing(
+                    m.get("input_usd_per_mtok"), m.get("output_usd_per_mtok"), _parse_price_changes(m.get("price_changes"))
+                )
             elif isinstance(m, str):
                 models[m] = ModelPricing()
         kind = raw.get("kind")
@@ -238,10 +263,16 @@ async def _client_for(provider: Provider) -> httpx.AsyncClient:
         return client
 
 
-def _cost(provider: Provider, model: str, input_tokens: int, output_tokens: int) -> float:
+def _cost(
+    provider: Provider, model: str, input_tokens: int, output_tokens: int, day: datetime.date | None = None
+) -> float:
+    """`output_tokens` já inclui os tokens de raciocínio (ver _openai_call) — é
+    assim que os provedores os cobram."""
     pricing = provider.models.get(model)
-    if pricing and pricing.input_usd_per_mtok is not None and pricing.output_usd_per_mtok is not None:
-        return (input_tokens / 1_000_000) * pricing.input_usd_per_mtok + (output_tokens / 1_000_000) * pricing.output_usd_per_mtok
+    if pricing:
+        price_in, price_out = pricing.at(day or datetime.datetime.now(datetime.timezone.utc).date())
+        if price_in is not None and price_out is not None:
+            return (input_tokens / 1_000_000) * price_in + (output_tokens / 1_000_000) * price_out
     return estimate_cost_usd(model, input_tokens, output_tokens)
 
 

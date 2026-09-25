@@ -115,3 +115,36 @@ async def test_openai_call_falls_back_to_json_object_and_tracks_cost(monkeypatch
     assert "JSON Schema" in bodies[1]["messages"][0]["content"]  # schema passa para o prompt
     assert (tracker.input_tokens, tracker.output_tokens) == (1000, 500)
     assert tracker.cost_usd == pytest.approx(1000 / 1e6 * 2.0 + 500 / 1e6 * 4.0)
+
+
+# --- preços com data de mudança ------------------------------------------------------
+
+def test_cost_uses_price_in_force_on_the_day():
+    import datetime
+
+    provider = llm._parse_provider(
+        {
+            "id": "g",
+            "kind": "openai_compatible",
+            "models": [
+                {
+                    "id": "gemini-3.8-flash",
+                    "input_usd_per_mtok": 0.75,
+                    "output_usd_per_mtok": 3.75,
+                    "price_changes": [{"from": "2027-01-01", "input_usd_per_mtok": 1.5, "output_usd_per_mtok": 7.5}],
+                }
+            ],
+        }
+    )
+    before = llm._cost(provider, "gemini-3.8-flash", 1_000_000, 1_000_000, datetime.date(2026, 12, 31))
+    after = llm._cost(provider, "gemini-3.8-flash", 1_000_000, 1_000_000, datetime.date(2027, 1, 1))
+    assert before == pytest.approx(0.75 + 3.75)
+    assert after == pytest.approx(1.5 + 7.5)
+
+
+def test_incomplete_price_change_is_ignored():
+    provider = llm._parse_provider(
+        {"id": "g", "kind": "openai_compatible",
+         "models": [{"id": "m", "input_usd_per_mtok": 1, "output_usd_per_mtok": 2, "price_changes": [{"from": "2027-01-01"}]}]}
+    )
+    assert provider.models["m"].changes == []

@@ -15,10 +15,19 @@ type Kind = 'anthropic' | 'openai_compatible'
 type JsonMode = 'json_schema' | 'json_object' | 'prompt'
 type TokenParam = 'max_tokens' | 'max_completion_tokens'
 
+interface PriceChange {
+  /** AAAA-MM-DD — a partir deste dia (UTC) vale este preço */
+  from: string
+  input_usd_per_mtok: number | null
+  output_usd_per_mtok: number | null
+}
+
 interface ModelEntry {
   id: string
   input_usd_per_mtok: number | null
   output_usd_per_mtok: number | null
+  /** preços que mudam numa data (ex.: Gemini 3.8 Flash duplica a 2027-01-01) */
+  price_changes?: PriceChange[]
 }
 
 interface Provider {
@@ -501,7 +510,9 @@ function ProviderCard({
       <div className="mt-4">
         <p className="mb-1 text-sm font-medium text-slate-700">Modelos</p>
         <p className="mb-2 text-xs text-slate-400">
-          O id exato que a API espera. O preço (USD por milhão de tokens) só serve para a aba “Gastos IA”.
+          O id exato que a API espera. O preço (USD por milhão de tokens) só serve para a aba “Gastos IA” — nos
+          modelos de raciocínio, a saída inclui os tokens de raciocínio. Se o provedor anunciar uma mudança de preço
+          numa data, acrescenta-a: o custo de cada chamada usa o preço em vigor nesse dia.
         </p>
         <div className="space-y-2">
           {p.models.map((m, i) => (
@@ -525,6 +536,7 @@ function ProviderCard({
                   ✕
                 </button>
               </div>
+              <PriceChanges value={m.price_changes ?? []} onChange={(price_changes) => setModel(i, { price_changes })} />
               {testing === i && m.id && (
                 <ModelTest provider={p} model={m.id} needsKey={!p.use_env_credentials && !hasKey} />
               )}
@@ -637,6 +649,36 @@ function TestCallView({ title, call }: { title: string; call?: TestCall }) {
       </p>
       {call.text && <p className="mt-1 whitespace-pre-wrap text-slate-800">{call.text}</p>}
       {call.error && <p className="mt-1 whitespace-pre-wrap break-words text-red-600">{call.error}</p>}
+    </div>
+  )
+}
+
+function PriceChanges({ value, onChange }: { value: PriceChange[]; onChange: (v: PriceChange[]) => void }) {
+  const set = (i: number, patch: Partial<PriceChange>) => onChange(value.map((c, j) => (j === i ? { ...c, ...patch } : c)))
+  return (
+    <div className="mt-1 space-y-1 pl-3">
+      {value.map((c, i) => (
+        <div key={i} className="grid grid-cols-[auto_9rem_6rem_6rem_auto] items-center gap-2 text-xs text-slate-500">
+          <span>a partir de</span>
+          <input
+            type="date"
+            value={c.from}
+            onChange={(e) => set(i, { from: e.target.value })}
+            className="rounded-md border border-slate-300 px-2 py-1 text-xs"
+          />
+          <NumberInput value={c.input_usd_per_mtok ?? 0} step={0.01} onChange={(v) => set(i, { input_usd_per_mtok: v })} />
+          <NumberInput value={c.output_usd_per_mtok ?? 0} step={0.01} onChange={(v) => set(i, { output_usd_per_mtok: v })} />
+          <button onClick={() => onChange(value.filter((_, j) => j !== i))} className="text-slate-400 hover:text-red-600" aria-label="Remover mudança de preço">
+            ✕
+          </button>
+        </div>
+      ))}
+      <button
+        onClick={() => onChange([...value, { from: '', input_usd_per_mtok: null, output_usd_per_mtok: null }])}
+        className="text-[11px] text-slate-500 underline"
+      >
+        + mudança de preço numa data
+      </button>
     </div>
   )
 }
