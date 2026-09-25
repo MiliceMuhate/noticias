@@ -1,10 +1,11 @@
-import { type FormEvent, type ReactNode, useState } from 'react'
+import { type FormEvent, type ReactNode, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useAdSense } from '../../lib/adsense'
 import { useAnalytics } from '../../lib/analytics'
 import { useConsent } from '../../lib/consent'
-import { supabase } from '../../lib/supabase'
+import { useHydrated } from '../../lib/hydration'
+import { categoriesQuery, sanitizeSearchTerm } from '../../lib/publicData'
 
 /**
  * Moldura visual partilhada do site público — Delvis Design System,
@@ -15,13 +16,12 @@ function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
-export function formatHeaderDate(date: Date): string {
+function formatHeaderDate(date: Date): string {
   const parts = date.toLocaleDateString('pt', { weekday: 'long', day: 'numeric', month: 'long' })
   return parts.replace(/(^|de )([a-zà-ú]+)/g, (_m, p1: string, p2: string) => p1 + capitalize(p2))
 }
 
-export function formatRelative(iso: string | null): string {
-  if (!iso) return ''
+function formatRelative(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime()
   const minutes = Math.round(diffMs / 60000)
   if (minutes < 1) return 'agora mesmo'
@@ -32,34 +32,49 @@ export function formatRelative(iso: string | null): string {
   return `há ${days} dia${days === 1 ? '' : 's'}`
 }
 
-export function formatTime(iso: string | null): string {
-  if (!iso) return ''
-  return new Date(iso).toLocaleTimeString('pt', { hour: '2-digit', minute: '2-digit' })
+const DATE_FORMATS = {
+  time: { hour: '2-digit', minute: '2-digit' },
+  short: { day: 'numeric', month: 'short' },
+  long: { day: 'numeric', month: 'long', year: 'numeric' },
+} satisfies Record<string, Intl.DateTimeFormatOptions>
+
+type DateFormat = keyof typeof DATE_FORMATS | 'relative'
+
+function formatDate(iso: string, format: DateFormat, timeZone?: string): string {
+  if (format === 'relative') return formatRelative(iso)
+  const date = new Date(iso)
+  const options = { ...DATE_FORMATS[format], timeZone }
+  return format === 'time' ? date.toLocaleTimeString('pt', options) : date.toLocaleDateString('pt', options)
 }
 
-export function formatDateShort(iso: string | null): string {
-  if (!iso) return ''
-  return new Date(iso).toLocaleDateString('pt', { day: 'numeric', month: 'short' })
-}
-
-export function formatDateLong(iso: string | null): string {
-  if (!iso) return ''
-  return new Date(iso).toLocaleDateString('pt', { day: 'numeric', month: 'long', year: 'numeric' })
-}
-
-/** Só caracteres que têm significado sintático no `.or()` do PostgREST. */
-function sanitizeSearchTerm(value: string): string {
-  return value.replace(/[%,()]/g, ' ').trim()
-}
-
-async function fetchCategories(): Promise<string[]> {
-  const { data, error } = await supabase
-    .from('published_articles')
-    .select('category')
-    .not('category', 'is', null)
-  if (error) throw new Error(error.message)
-  const unique = new Set((data ?? []).map((row) => row.category).filter((c): c is string => !!c))
-  return Array.from(unique).sort((a, b) => a.localeCompare(b, 'pt'))
+/**
+ * Data de publicação no fuso do leitor. O servidor (SSR) não sabe esse fuso —
+ * corre em UTC — nem a que horas o HTML vai ser lido, por isso até hidratar
+ * mostra a data fixa em UTC ("relative" vira "short") e só depois a versão
+ * local. Sem isto, o texto do servidor e o do cliente divergiam e o React
+ * deitava fora o HTML do servidor.
+ */
+export function LocalTime({
+  iso,
+  format,
+  className,
+}: {
+  iso: string | null
+  format: DateFormat
+  className?: string
+}) {
+  const hydrated = useHydrated()
+  if (!iso) return null
+  const text = hydrated ? formatDate(iso, format) : formatDate(iso, format === 'relative' ? 'short' : format, 'UTC')
+  return (
+    <time
+      dateTime={iso}
+      className={className}
+      title={hydrated && format === 'relative' ? formatDate(iso, 'short') : undefined}
+    >
+      {text}
+    </time>
+  )
 }
 
 function SearchIcon() {
@@ -80,12 +95,9 @@ export function PublicHeader() {
   const [query, setQuery] = useState(searchParams.get('q') ?? '')
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
   const activeCategory = searchParams.get('categoria')
-  const { data: categories } = useQuery({
-    queryKey: ['published_articles', 'categories'],
-    queryFn: fetchCategories,
-    staleTime: 5 * 60 * 1000,
-  })
-  const today = formatHeaderDate(new Date())
+  const { data: categories } = useQuery(categoriesQuery())
+  const hydrated = useHydrated()
+  const today = hydrated ? formatHeaderDate(new Date()) : ''
 
   function handleSearch(event: FormEvent) {
     event.preventDefault()
@@ -269,8 +281,17 @@ export function ArticleImage({
   className: string
 }) {
   const [failed, setFailed] = useState(false)
+  const imgRef = useRef<HTMLImageElement>(null)
+  // Com SSR o browser começa a carregar a imagem antes de o React hidratar — se
+  // falhar nesse intervalo, o onError já disparou sem ninguém a ouvir.
+  useEffect(() => {
+    const img = imgRef.current
+    if (img?.complete && img.naturalWidth === 0) setFailed(true)
+  }, [src])
   if (src && !failed) {
-    return <img src={src} alt={alt} loading="lazy" className={className} onError={() => setFailed(true)} />
+    return (
+      <img ref={imgRef} src={src} alt={alt} loading="lazy" className={className} onError={() => setFailed(true)} />
+    )
   }
   return (
     <div className={`flex items-center justify-center bg-delvis-placeholder ${className}`}>

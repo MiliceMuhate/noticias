@@ -26,7 +26,8 @@ nem destinos externos como WordPress/YouTube/redes sociais).
   Railway/Render/Fly). Liga-se ao Supabase com a `service_role` key. Corre o seu próprio
   scheduler interno (APScheduler) que deteta tendências, pontua e gera artigos (cadeia LLM)
   — substitui por completo o que antes eram Edge Functions Deno + worker Node.
-- **Frontend:** React + Vite + TypeScript. Cliente `@supabase/supabase-js` (só chave `anon`).
+- **Frontend:** React + Vite + TypeScript, com **SSR** no site público (`apps/web/server.js`,
+  Express + `src/entry-server.tsx` — ver Arquitetura §3). Cliente `@supabase/supabase-js` (só chave `anon`).
   TailwindCSS. TanStack Query. Serve **duas coisas**: o site público de notícias (`/`,
   `/artigo/:slug`, sem login) e o painel operacional (`/admin/*`, com login).
 - **LLM:** API Anthropic (Claude) para a redação dos artigos.

@@ -3,17 +3,12 @@ import { Link, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import type { PublishedArticle } from '@repo/shared'
+import { articleQuery } from '../../lib/publicData'
+import { articleTitle, useDocumentTitle } from '../../lib/seo'
 import { supabase } from '../../lib/supabase'
-import { ArticleImage, CategoryLabel, formatDateLong, PublicFooter, PublicHeader } from './PublicChrome'
+import { ArticleImage, CategoryLabel, LocalTime, PublicFooter, PublicHeader } from './PublicChrome'
 
 /** Página pública de um artigo publicado, por slug — sem login. Ver .claude/design/design.md. */
-
-async function fetchArticle(slug: string): Promise<PublishedArticle | null> {
-  const { data, error } = await supabase.from('published_articles').select('*').eq('slug', slug).maybeSingle()
-  if (error) throw new Error(error.message)
-  return data
-}
 
 /** 1 contagem por artigo por separador (sessionStorage) — evita que um refresh
  * ou re-render infle a contagem sozinho. Falha em silêncio: contar visitas
@@ -34,12 +29,9 @@ function useCountView(articleId: string | undefined) {
 
 export default function ArticlePage() {
   const { slug } = useParams<{ slug: string }>()
-  const {
-    data: article,
-    isLoading,
-    error,
-  } = useQuery({ queryKey: ['published_article', slug], queryFn: () => fetchArticle(slug!), enabled: !!slug })
+  const { data: article, isLoading, error } = useQuery({ ...articleQuery(slug ?? ''), enabled: !!slug })
   useCountView(article?.id)
+  useDocumentTitle(article ? articleTitle(article) : null)
 
   const tags = Array.isArray(article?.tags) ? (article.tags as unknown[]).filter((t): t is string => typeof t === 'string') : []
 
@@ -69,7 +61,7 @@ export default function ArticlePage() {
               <span className="text-[13px] font-semibold text-delvis-ink">{article.author ?? 'Redação'}</span>
               {article.published_at && (
                 <span className="text-[13px] font-medium text-delvis-mute">
-                  · {formatDateLong(article.published_at)}
+                  · <LocalTime iso={article.published_at} format="long" />
                 </span>
               )}
             </div>

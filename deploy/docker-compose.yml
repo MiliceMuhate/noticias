@@ -20,5 +20,8 @@ services:
         VITE_ADSENSE_CLIENT_ID: ${VITE_ADSENSE_CLIENT_ID}
         VITE_GA_MEASUREMENT_ID: ${VITE_GA_MEASUREMENT_ID}
     restart: unless-stopped
+    environment:
+      # domínio canónico do site público (canonical, og:url, JSON-LD, sitemap.xml)
+      SITE_URL: ${SITE_URL:-https://footballtrend.online}
     ports:
-      - "127.0.0.1:8080:80"
+      - "127.0.0.1:8080:3000"

@@ -47,8 +47,15 @@ function getSnapshot(): ConsentValue | null {
   return current
 }
 
+/** No servidor (SSR) e durante a hidratação a decisão ainda é desconhecida —
+ * `undefined`, não `null`, para o banner não aparecer no HTML do servidor e
+ * depois desaparecer a quem já tinha aceitado. */
+function getServerSnapshot(): undefined {
+  return undefined
+}
+
 export function useConsent() {
-  const status = useSyncExternalStore(subscribe, getSnapshot)
+  const status = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
   return {
     status,
     granted: status === 'accepted',

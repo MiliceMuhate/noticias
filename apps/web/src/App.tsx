@@ -11,6 +11,7 @@ import Costs from './pages/Costs'
 import NewsList from './pages/public/NewsList'
 import ArticlePage from './pages/public/ArticlePage'
 import PrivacyPolicy from './pages/public/PrivacyPolicy'
+import NotFound from './pages/public/NotFound'
 
 export default function App() {
   return (
@@ -19,6 +20,7 @@ export default function App() {
       <Route path="/artigo/:slug" element={<ArticlePage />} />
       <Route path="/politica-de-privacidade" element={<PrivacyPolicy />} />
       <Route path="/admin/*" element={<Admin />} />
+      <Route path="*" element={<NotFound />} />
     </Routes>
   )
 }

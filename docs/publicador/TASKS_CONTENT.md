@@ -80,8 +80,8 @@
       `/correcoes`.
 - [ ] Páginas de secção `/seccao/:desk`.
 - [ ] Nota de atualização no fim dos artigos editados (a partir de `audit_log`).
-- [ ] `sitemap.xml`, `robots.txt`, `noindex` em páginas de arquivo finas.
-- [ ] Dados estruturados `NewsArticle` (JSON-LD) com `author`, `publisher`, `datePublished`,
+- [x] `sitemap.xml`, `robots.txt`, `noindex` em páginas de arquivo finas.
+- [x] Dados estruturados `NewsArticle` (JSON-LD) com `author`, `publisher`, `datePublished`,
       `dateModified` e `isBasedOn` a apontar para a fonte.
 
 ## 5.8 — Antes de candidatar ao AdSense

@@ -1,37 +1,18 @@
 import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import type { PublishedArticle } from '@repo/shared'
-import { supabase } from '../../lib/supabase'
-import {
-  ArticleImage,
-  CategoryLabel,
-  formatDateShort,
-  formatRelative,
-  formatTime,
-  PublicFooter,
-  PublicHeader,
-} from './PublicChrome'
+import { articlesQuery } from '../../lib/publicData'
+import { DEFAULT_TITLE, SITE_NAME, useDocumentTitle } from '../../lib/seo'
+import { ArticleImage, CategoryLabel, LocalTime, PublicFooter, PublicHeader } from './PublicChrome'
 
 /** Página pública de notícias — "Portal clássico" (ver .claude/design/design.md, direção 1a). */
-
-async function fetchArticles(category: string | null, search: string | null): Promise<PublishedArticle[]> {
-  let query = supabase.from('published_articles').select('*').order('published_at', { ascending: false }).limit(30)
-  if (category) query = query.eq('category', category)
-  if (search) query = query.or(`title.ilike.%${search}%,seo_description.ilike.%${search}%`)
-  const { data, error } = await query
-  if (error) throw new Error(error.message)
-  return data
-}
 
 export default function NewsList() {
   const [searchParams] = useSearchParams()
   const category = searchParams.get('categoria')
   const search = searchParams.get('q')
 
-  const { data: articles, isLoading, error } = useQuery({
-    queryKey: ['published_articles', { category, search }],
-    queryFn: () => fetchArticles(category, search),
-  })
+  const { data: articles, isLoading, error } = useQuery(articlesQuery(category, search))
+  useDocumentTitle(category ? `${category} | ${SITE_NAME}` : DEFAULT_TITLE)
 
   const list = articles ?? []
   const [hero, ...restAfterHero] = list
@@ -79,12 +60,7 @@ export default function NewsList() {
               <div className="mt-4 flex items-center gap-2.5">
                 <CategoryLabel>{hero.category ?? 'Futebol'}</CategoryLabel>
                 <span className="h-1 w-1 rounded-full bg-delvis-line" />
-                <span
-                  className="text-xs font-medium text-delvis-mute"
-                  title={hero.published_at ? formatDateShort(hero.published_at) : undefined}
-                >
-                  {formatRelative(hero.published_at)}
-                </span>
+                <LocalTime iso={hero.published_at} format="relative" className="text-xs font-medium text-delvis-mute" />
               </div>
               <h1 className="mt-2.5 font-display text-3xl font-semibold leading-tight text-delvis-ink group-hover:underline sm:text-[40px]">
                 {hero.title ?? '(sem título)'}
@@ -98,7 +74,7 @@ export default function NewsList() {
                 <span className="h-8 w-8 rounded-full border border-delvis-line bg-delvis-surface" />
                 <span className="text-[13px] font-semibold text-delvis-ink">{hero.author ?? 'Redação'}</span>
                 <span className="text-[13px] font-medium text-delvis-mute">
-                  · {formatDateShort(hero.published_at)}
+                  · <LocalTime iso={hero.published_at} format="short" />
                 </span>
               </div>
             </Link>
@@ -124,7 +100,11 @@ export default function NewsList() {
                         className="h-16 w-16 shrink-0 rounded object-cover"
                       />
                       <div className="min-w-0">
-                        <span className="text-xs font-medium text-delvis-mute">{formatTime(article.published_at)}</span>
+                        <LocalTime
+                          iso={article.published_at}
+                          format="time"
+                          className="block text-xs font-medium text-delvis-mute"
+                        />
                         <p className="line-clamp-2 font-display text-base font-medium leading-tight text-delvis-ink hover:underline sm:text-[17px]">
                           {article.title ?? '(sem título)'}
                         </p>
@@ -165,7 +145,7 @@ export default function NewsList() {
                     </p>
                   )}
                   <span className="text-xs font-medium text-delvis-mute">
-                    {article.author ?? 'Redação'} · {formatDateShort(article.published_at)}
+                    {article.author ?? 'Redação'} · <LocalTime iso={article.published_at} format="short" />
                   </span>
                 </Link>
               ))}

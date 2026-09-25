@@ -105,7 +105,10 @@ molde) e constrói/arranca os containers. Confirma:
 - `docker compose -f /opt/noticias/deploy/docker-compose.yml ps` mostra
   `api` e `web` a correr (`healthy`).
 - `curl -s 127.0.0.1:8000/health` responde `{"status":"ok"}`.
-- `curl -s 127.0.0.1:8080/` devolve o `index.html` do site.
+- `curl -s 127.0.0.1:8080/` devolve a home já renderizada pelo servidor (SSR —
+  o `<div id="root">` vem com as notícias, não vazio).
+- `curl -s 127.0.0.1:8080/sitemap.xml` lista os artigos com URLs
+  `https://footballtrend.online/...` (vem de `SITE_URL` em `deploy/.env`).
 - `ls /opt/noticias/deploy/hooks.json` já existe.
 
 ## 4. Serviço do webhook

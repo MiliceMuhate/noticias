@@ -10,9 +10,9 @@ COPY apps/web apps/web
 
 RUN pnpm install --frozen-lockfile --filter web...
 
-# Vite embebe estas variáveis no bundle em build-time — só valores públicos
-# (chave anon, client id do AdSense, measurement id do GA4), nunca segredos
-# (guardrail #4 do CLAUDE.md).
+# Vite embebe estas variáveis nos bundles (browser E servidor SSR) em
+# build-time — só valores públicos (chave anon, client id do AdSense,
+# measurement id do GA4), nunca segredos (guardrail #4 do CLAUDE.md).
 ARG VITE_SUPABASE_URL
 ARG VITE_SUPABASE_ANON_KEY
 ARG VITE_ADSENSE_CLIENT_ID
@@ -23,14 +23,20 @@ ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL \
     VITE_GA_MEASUREMENT_ID=$VITE_GA_MEASUREMENT_ID
 
 RUN pnpm --filter web build
+# pasta autónoma só com o que corre em produção: server.js + dist/ ("files"
+# do package.json) + node_modules sem devDependencies
+RUN pnpm --filter web deploy --prod /out
 
-FROM nginx:1.27-alpine AS runtime
-COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /repo/apps/web/dist /usr/share/nginx/html
+FROM node:20-slim AS runtime
+ENV NODE_ENV=production \
+    PORT=3000
+WORKDIR /app
+COPY --from=build --chown=node:node /out ./
+USER node
 
-EXPOSE 80
+EXPOSE 3000
 
-# "localhost" dentro do container resolve para ::1 primeiro (IPv6), e o nginx só
-# escuta em IPv4 — por isso 127.0.0.1 explícito, não localhost
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD wget -qO- http://127.0.0.1/ >/dev/null || exit 1
+    CMD node -e "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
+CMD ["node", "server.js"]

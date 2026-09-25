@@ -98,7 +98,23 @@ backend via `service_role` (piloto automático ligado).
 ### 3. Frontend — `apps/web` (React + Vite, dashboard **e** site público)
 
 - **Site público** (`/`, `/artigo/:slug`, sem login): lê a view `published_articles`
-  (só colunas seguras) com a chave `anon`.
+  (só colunas seguras) com a chave `anon`. **Renderizado no servidor (SSR)** para o
+  Google indexar o HTML completo: `apps/web/server.js` (Express; Vite em middleware
+  mode em dev) chama `src/entry-server.tsx`, que pré-carrega os dados com as mesmas
+  query keys das páginas (`src/lib/publicData.ts`), faz `renderToString` e monta o
+  `<head>` (title, description, canonical, Open Graph, JSON-LD `NewsArticle` com
+  `isBasedOn` → fonte — `src/lib/seo.ts`). O estado do TanStack Query segue em
+  `window.__RQ_STATE__` e `src/entry-client.tsx` hidrata sem novo pedido. Também
+  serve `/sitemap.xml` e `/robots.txt`. Respostas: 404 para artigo/rota inexistente;
+  `noindex` em pesquisas, categorias com <3 artigos e `/admin`. Se o Supabase falhar
+  durante o SSR, cai para a SPA vazia (o browser renderiza sozinho). Domínio
+  canónico: env `SITE_URL` (produção: `https://footballtrend.online`). Tudo o que só
+  o browser sabe (fuso horário, "há 5 min", consentimento de cookies) só aparece
+  depois de hidratar — `useHydrated()` em `src/lib/hydration.ts` — para o HTML do
+  servidor e o do cliente não divergirem.
+- **Painel `/admin/*`** não é renderizado no servidor (depende da sessão, que só
+  existe no browser): o servidor devolve o `#root` vazio com `noindex` e o cliente
+  faz render normal.
 - **Painel `/admin/*`** (com login): fila de revisão (cartão com o artigo, o link ao
   artigo original — para o operador confirmar a fidelidade da reescrita — e o texto
   extraído em `sport_facts`, e botões Aprovar/Rejeitar/Editar), vista de tendências,
