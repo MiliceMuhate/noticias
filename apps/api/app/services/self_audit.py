@@ -13,7 +13,6 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..llm import UsageTracker, complete_json
 from ..prompts import render
-from ..settings_store import model_for_step
 from .facts import FactSheet
 
 Veredicto = Literal["aprovado", "rever", "bloquear"]
@@ -98,7 +97,26 @@ REWRITE_SCHEMA: dict = {
 }
 
 
-async def self_audit(body: str, source_text: str, facts: FactSheet, tracker: UsageTracker) -> AuditResult:
+# settings.editorial_pipeline.audit_strictness (painel → Configuração → Motor
+# editorial). Muda só a fronteira entre "aprovado" e "rever"; "bloquear" é
+# sempre cópia/invenção grave, em qualquer nível.
+STRICTNESS_GUIDANCE: dict[str, str] = {
+    "tolerante": (
+        "Rigor: TOLERANTE. Uma frase isolada próxima do original, ou uma afirmação "
+        "interpretativa discutível, não chega para \"rever\" — usa \"aprovado\". Só "
+        "\"rever\" com 3 ou mais casos, ou com um facto específico errado."
+    ),
+    "normal": "Rigor: NORMAL. Aplica os critérios acima tal como estão escritos.",
+    "rigoroso": (
+        "Rigor: RIGOROSO. Qualquer caso de copiado, inventado ou decalcado, por menor "
+        "que seja, dá \"rever\". Citações deixadas na língua original contam como copiado."
+    ),
+}
+
+
+async def self_audit(
+    body: str, source_text: str, facts: FactSheet, tracker: UsageTracker, strictness: str = "normal"
+) -> AuditResult:
     system = render("self_audit", "system")
     user = render(
         "self_audit",
@@ -106,13 +124,14 @@ async def self_audit(body: str, source_text: str, facts: FactSheet, tracker: Usa
         body=body,
         source_text=source_text[:8000],
         facts_json=facts.model_dump_json(),
+        strictness=STRICTNESS_GUIDANCE.get(strictness, STRICTNESS_GUIDANCE["normal"]),
     )
     data = await complete_json(
         system=system,
         prompt=user,
         schema=AUDIT_SCHEMA,
         max_tokens=2048,
-        model=model_for_step("self_audit"),
+        step="self_audit",
         tracker=tracker,
     )
     return AuditResult.model_validate(data)
@@ -132,7 +151,7 @@ async def rewrite_flagged(body: str, flagged: dict, facts: FactSheet, tracker: U
         prompt=user,
         schema=REWRITE_SCHEMA,
         max_tokens=4096,
-        model=model_for_step("rewrite_flagged"),
+        step="rewrite_flagged",
         tracker=tracker,
     )
     return data["body"]

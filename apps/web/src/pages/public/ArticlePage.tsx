@@ -3,8 +3,9 @@ import { Link, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { localizedPath, parseAlternates, useLang, useT } from '../../lib/i18n'
 import { articleQuery } from '../../lib/publicData'
-import { articleTitle, useDocumentTitle } from '../../lib/seo'
+import { articlePath, articleTitle, useDocumentTitle } from '../../lib/seo'
 import { supabase } from '../../lib/supabase'
 import { ArticleImage, CategoryLabel, LocalTime, PublicFooter, PublicHeader } from './PublicChrome'
 
@@ -29,36 +30,44 @@ function useCountView(articleId: string | undefined) {
 
 export default function ArticlePage() {
   const { slug } = useParams<{ slug: string }>()
-  const { data: article, isLoading, error } = useQuery({ ...articleQuery(slug ?? ''), enabled: !!slug })
+  const lang = useLang()
+  const t = useT()
+  const { data: article, isLoading, error } = useQuery({ ...articleQuery(lang, slug ?? ''), enabled: !!slug })
   useCountView(article?.id)
   useDocumentTitle(article ? articleTitle(article) : null)
+  const alternates = article ? parseAlternates(article.alternates) : undefined
+  const original = lang !== 'pt' ? alternates?.find((a) => a.lang === 'pt') : undefined
 
   const tags = Array.isArray(article?.tags) ? (article.tags as unknown[]).filter((t): t is string => typeof t === 'string') : []
 
   return (
     <div className="min-h-screen bg-white font-body">
-      <PublicHeader />
+      <PublicHeader alternates={alternates} />
       <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
         <Link
-          to="/"
+          to={localizedPath(lang, '/')}
           className="mb-6 inline-flex items-center gap-1 font-display text-sm font-medium uppercase tracking-wide text-delvis-teal hover:text-delvis-teal-600"
         >
-          ← Notícias de futebol
+          {t('backToNews')}
         </Link>
 
-        {isLoading && <p className="text-delvis-mute">A carregar…</p>}
-        {error && <p className="text-red-600">Erro: {(error as Error).message}</p>}
-        {!isLoading && !error && !article && <p className="text-delvis-mute">Artigo não encontrado.</p>}
+        {isLoading && <p className="text-delvis-mute">{t('loading')}</p>}
+        {error && (
+          <p className="text-red-600">
+            {t('error')} {(error as Error).message}
+          </p>
+        )}
+        {!isLoading && !error && !article && <p className="text-delvis-mute">{t('articleNotFound')}</p>}
 
         {article && (
           <article>
-            <CategoryLabel>{article.category ?? 'Futebol'}</CategoryLabel>
+            <CategoryLabel>{article.category ?? t('football')}</CategoryLabel>
             <h1 className="mt-2.5 font-display text-3xl font-semibold leading-tight text-delvis-ink sm:text-[40px]">
-              {article.title ?? '(sem título)'}
+              {article.title ?? t('untitled')}
             </h1>
             <div className="mt-3 flex items-center gap-2.5">
               <span className="h-8 w-8 rounded-full border border-delvis-line bg-delvis-surface" />
-              <span className="text-[13px] font-semibold text-delvis-ink">{article.author ?? 'Redação'}</span>
+              <span className="text-[13px] font-semibold text-delvis-ink">{article.author ?? t('newsroom')}</span>
               {article.published_at && (
                 <span className="text-[13px] font-medium text-delvis-mute">
                   · <LocalTime iso={article.published_at} format="long" />
@@ -74,22 +83,35 @@ export default function ArticlePage() {
             />
             {article.media_url && article.source_name && (
               <p className="mt-2.5 border-l-2 border-delvis-line pl-2.5 text-xs font-medium text-delvis-mute">
-                Foto: {article.source_name}
+                {t('photo')} {article.source_name}
               </p>
             )}
 
             {article.source_url && (
               <p className="mt-6 bg-delvis-surface px-3.5 py-2.5 text-xs font-medium text-delvis-mute">
-                Reformulado a partir de notícia publicada por{' '}
-                <span className="font-bold text-delvis-ink">{article.source_name ?? 'fonte externa'}</span>.{' '}
+                {t('rewrittenFrom')}{' '}
+                <span className="font-bold text-delvis-ink">{article.source_name ?? t('externalSource')}</span>.{' '}
                 <a
                   href={article.source_url}
                   target="_blank"
                   rel="noreferrer"
                   className="font-bold text-delvis-teal underline hover:text-delvis-teal-600"
                 >
-                  Ver artigo original ↗
+                  {t('viewOriginal')}
                 </a>
+                {original && (
+                  <>
+                    <br />
+                    {t('translatedFrom')}{' '}
+                    <Link
+                      to={articlePath('pt', original.slug)}
+                      hrefLang="pt-PT"
+                      className="font-bold text-delvis-teal underline hover:text-delvis-teal-600"
+                    >
+                      {t('readInPortuguese')}
+                    </Link>
+                  </>
+                )}
               </p>
             )}
 

@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import type { PublishedArticle } from '@repo/shared'
+import { DEFAULT_LANG, HTML_LANG, type Lang, localizedPath, OG_LOCALE, parseAlternates, translate } from './i18n'
 
 /**
  * Metadados de SEO do site público. O `<head>` é montado no servidor
@@ -9,11 +10,23 @@ import type { PublishedArticle } from '@repo/shared'
  */
 
 export const SITE_NAME = 'footballtrend'
-export const DEFAULT_TITLE = 'footballtrend — Notícias de Futebol'
-export const DEFAULT_DESCRIPTION =
-  'Notícias de futebol ao minuto: transferências, resultados e análise, sempre com a fonte original indicada.'
+
+export function defaultTitle(lang: Lang): string {
+  return translate(lang, 'defaultTitle')
+}
+
+export function defaultDescription(lang: Lang): string {
+  return translate(lang, 'defaultDescription')
+}
+
+/** Uma versão da mesma página noutra língua — vira `<link rel="alternate" hreflang>`. */
+export interface HeadAlternate {
+  lang: Lang
+  path: string
+}
 
 export interface HeadData {
+  lang: Lang
   title: string
   description?: string
   /** Caminho absoluto a partir da raiz (ex.: "/artigo/x"), sem domínio. */
@@ -23,14 +36,26 @@ export interface HeadData {
   image?: string | null
   publishedTime?: string | null
   jsonLd?: Record<string, unknown>
+  /** Todas as versões da página, incluindo a própria (o Google pede-o assim). */
+  alternates?: HeadAlternate[]
 }
 
-export function articlePath(slug: string): string {
-  return `/artigo/${encodeURIComponent(slug)}`
+export function articlePath(lang: Lang, slug: string): string {
+  return localizedPath(lang, `/artigo/${encodeURIComponent(slug)}`)
 }
 
-export function articleTitle(article: Pick<PublishedArticle, 'title'>): string {
-  return article.title ? `${article.title} | ${SITE_NAME}` : DEFAULT_TITLE
+export function articleTitle(article: Pick<PublishedArticle, 'title' | 'lang'>): string {
+  return article.title ? `${article.title} | ${SITE_NAME}` : defaultTitle(article.lang as Lang)
+}
+
+/** Versões de um artigo noutras línguas, a partir da coluna `alternates` da view. */
+export function articleAlternates(article: Pick<PublishedArticle, 'alternates'>): HeadAlternate[] {
+  return parseAlternates(article.alternates).map((a) => ({ lang: a.lang, path: articlePath(a.lang, a.slug) }))
+}
+
+/** Páginas que existem em todas as línguas (início, privacidade): mesmo caminho, prefixo diferente. */
+export function everyLangAlternates(path: string, langs: readonly Lang[]): HeadAlternate[] {
+  return langs.map((lang) => ({ lang, path: localizedPath(lang, path) }))
 }
 
 function escapeHtml(value: string): string {
@@ -58,8 +83,19 @@ export function renderHeadTags(head: HeadData, siteUrl: string): string {
   meta('name', 'robots', head.noindex ? 'noindex, follow' : 'index, follow, max-image-preview:large')
   if (canonical) tags.push(`<link rel="canonical" href="${escapeHtml(canonical)}" />`)
 
+  if (!head.noindex && head.alternates && head.alternates.length > 1) {
+    for (const alt of head.alternates) {
+      tags.push(`<link rel="alternate" hreflang="${HTML_LANG[alt.lang]}" href="${escapeHtml(`${siteUrl}${alt.path}`)}" />`)
+    }
+    const fallback = head.alternates.find((a) => a.lang === DEFAULT_LANG)
+    if (fallback) tags.push(`<link rel="alternate" hreflang="x-default" href="${escapeHtml(`${siteUrl}${fallback.path}`)}" />`)
+  }
+
   meta('property', 'og:site_name', SITE_NAME)
-  meta('property', 'og:locale', 'pt_PT')
+  meta('property', 'og:locale', OG_LOCALE[head.lang])
+  for (const alt of head.alternates ?? []) {
+    if (alt.lang !== head.lang) meta('property', 'og:locale:alternate', OG_LOCALE[alt.lang])
+  }
   meta('property', 'og:type', head.ogType ?? 'website')
   meta('property', 'og:title', head.title)
   meta('property', 'og:description', head.description)
@@ -81,7 +117,8 @@ export function renderHeadTags(head: HeadData, siteUrl: string): string {
  * responsável. `isBasedOn` aponta para a notícia original (guardrail #2).
  */
 export function newsArticleJsonLd(article: PublishedArticle, siteUrl: string): Record<string, unknown> {
-  const url = `${siteUrl}${articlePath(article.slug)}`
+  const lang = article.lang as Lang
+  const url = `${siteUrl}${articlePath(lang, article.slug)}`
   const tags = Array.isArray(article.tags) ? article.tags.filter((t): t is string => typeof t === 'string') : []
   const publisher = {
     '@type': 'Organization',
@@ -99,12 +136,12 @@ export function newsArticleJsonLd(article: PublishedArticle, siteUrl: string): R
     image: article.media_url ? [article.media_url] : undefined,
     datePublished: article.published_at ?? undefined,
     dateModified: article.published_at ?? undefined,
-    author: [{ '@type': 'Organization', name: article.author ?? `Redação ${SITE_NAME}`, url: siteUrl }],
+    author: [{ '@type': 'Organization', name: article.author ?? `${translate(lang, 'newsroom')} ${SITE_NAME}`, url: siteUrl }],
     editor: article.editor ? { '@type': 'Person', name: article.editor } : undefined,
     publisher,
     articleSection: article.category ?? undefined,
     keywords: tags.length > 0 ? tags.join(', ') : undefined,
-    inLanguage: 'pt',
+    inLanguage: HTML_LANG[lang],
     isBasedOn: article.source_url
       ? {
           '@type': 'NewsArticle',

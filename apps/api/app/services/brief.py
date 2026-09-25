@@ -11,7 +11,6 @@ from ..db import supabase
 from ..exceptions import TopicRejected
 from ..llm import UsageTracker, complete_json
 from ..prompts import render
-from ..settings_store import model_for_step
 from .facts import FactSheet
 
 Variacao = Literal[
@@ -155,7 +154,7 @@ async def editorial_brief(
         prompt=user,
         schema=BRIEF_SCHEMA,
         max_tokens=2048,
-        model=model_for_step("editorial_brief"),
+        step="editorial_brief",
         tracker=tracker,
     )
     brief = EditorialBrief.model_validate(data)

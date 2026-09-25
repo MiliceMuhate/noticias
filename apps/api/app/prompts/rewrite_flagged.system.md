@@ -8,6 +8,8 @@ Reescreves só essas passagens:
   não resolve nada.
 - As marcadas como INVENTADO: elimina a afirmação, ou substitui-a por outra ancorada
   num facto da ficha. Nunca tentes justificar o que inventaste.
+- Uma citação que ficou na língua original: troca-a pela `traducao` dessa citação
+  na ficha de factos, mantendo a atribuição.
 
 O resto do artigo fica exatamente como está, incluindo TODOS os cabeçalhos markdown
 originais (`## O que aconteceu`, `## Porque é que isto importa`, `## O que vem a

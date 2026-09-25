@@ -1,11 +1,11 @@
 """Leitura da tabela `settings` (BD) — partilhado por scheduler.py e pelos serviços
-editoriais, para poder afinar vozes/limiares/modelos sem novo deploy."""
+editoriais, para poder afinar vozes/limiares/modelos sem novo deploy.
+(O modelo/provedor por passo resolve-se em llm.resolve_step.)"""
 
 from __future__ import annotations
 
 from typing import Any
 
-from .config import settings as env_settings
 from .db import supabase
 
 
@@ -14,8 +14,13 @@ def get_settings(keys: list[str]) -> dict[str, Any]:
     return {row["key"]: row["value"] for row in (res.data or [])}
 
 
-def model_for_step(step: str) -> str:
-    """settings.model_by_step[step], com fallback ao modelo único do .env."""
-    cfg = get_settings(["model_by_step"])
-    by_step = cfg.get("model_by_step") or {}
-    return by_step.get(step) or env_settings.anthropic_model
+def settings_dict(cfg: dict[str, Any], key: str, default: dict) -> dict:
+    """Valor de settings como objeto, com os campos em falta preenchidos pelo
+    omisso — um settings antigo/mal formado nunca rebenta um ciclo."""
+    value = cfg.get(key)
+    return {**default, **value} if isinstance(value, dict) else dict(default)
+
+
+DEFAULT_AUTOPILOT_POLICY = {"min_originality": "pass", "min_audit": "aprovado"}
+DEFAULT_EDITORIAL_PIPELINE = {"rewrite_on_audit_review": True, "audit_strictness": "normal"}
+DEFAULT_TRANSLATION = {"enabled": True, "languages": ["en", "es", "fr"], "max_attempts": 3}

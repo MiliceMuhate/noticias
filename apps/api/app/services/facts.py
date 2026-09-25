@@ -13,7 +13,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..exceptions import TopicRejected
 from ..llm import UsageTracker, complete_json
 from ..prompts import render
-from ..settings_store import model_for_step
 from .source_article import SourceArticle
 
 EventoTipo = Literal["jogo", "transferencia", "lesao", "declaracao", "institucional", "competicao", "outro"]
@@ -58,6 +57,9 @@ class Citacao(BaseModel):
     id: str
     autor: str
     texto: str
+    # tradução fiel para português — é esta que o artigo usa; `texto` fica na
+    # língua original, para o portão de originalidade e para a auditoria
+    traducao: str = ""
 
 
 class FactSheet(BaseModel):
@@ -137,8 +139,9 @@ FACT_SHEET_SCHEMA: dict = {
                     "id": {"type": "string"},
                     "autor": {"type": "string"},
                     "texto": {"type": "string"},
+                    "traducao": {"type": "string"},
                 },
-                "required": ["id", "autor", "texto"],
+                "required": ["id", "autor", "texto", "traducao"],
                 "additionalProperties": False,
             },
         },
@@ -176,7 +179,7 @@ async def _call(article: SourceArticle, tracker: UsageTracker) -> FactSheet:
         prompt=user,
         schema=FACT_SHEET_SCHEMA,
         max_tokens=2048,
-        model=model_for_step("extract_facts"),
+        step="extract_facts",
         tracker=tracker,
     )
     try:

@@ -18,6 +18,8 @@ export type TopicStatus =
   | 'failed'
 export type ContentStatus = 'pending_review' | 'published' | 'rejected'
 export type JobStatus = 'queued' | 'running' | 'done' | 'failed'
+export type TranslationLang = 'en' | 'es' | 'fr'
+export type TranslationStatus = 'ready' | 'blocked' | 'failed'
 export type Momentum = 'rising' | 'peaked' | 'falling'
 export type Desk = 'resultados' | 'transferencias' | 'analise' | 'institucional'
 
@@ -279,6 +281,30 @@ export interface Database {
         }
         Relationships: []
       }
+      content_translations: {
+        Row: {
+          id: string
+          content_item_id: string
+          lang: TranslationLang
+          status: TranslationStatus
+          title: string | null
+          body: string | null
+          dek: string | null
+          seo_description: string | null
+          tags: Json
+          slug: string | null
+          source_hash: string
+          originality: Json | null
+          error: string | null
+          attempts: number
+          created_at: string
+          updated_at: string
+        }
+        // escrita só pelo backend (service_role)
+        Insert: Record<string, never>
+        Update: Record<string, never>
+        Relationships: []
+      }
       settings: {
         Row: {
           key: string
@@ -316,6 +342,10 @@ export interface Database {
           source_name: string | null
           source_url: string | null
           category: string | null
+          /** 'pt' (content_items) ou a língua de uma content_translations 'ready' */
+          lang: string
+          /** [{lang, slug}] de todas as versões deste artigo, incluindo esta */
+          alternates: Json
         }
         Relationships: []
       }
@@ -332,6 +362,14 @@ export interface Database {
       increment_article_view: {
         Args: { p_id: string }
         Returns: void
+      }
+      set_ai_provider_key: {
+        Args: { p_provider_id: string; p_key: string | null }
+        Returns: void
+      }
+      ai_provider_key_status: {
+        Args: Record<string, never>
+        Returns: { provider_id: string; updated_at: string }[]
       }
     }
     Enums: {
@@ -357,3 +395,4 @@ export type SportFact = Tables<'sport_facts'>
 export type Job = Tables<'jobs'>
 export type Profile = Tables<'profiles'>
 export type PublishedArticle = Database['public']['Views']['published_articles']['Row']
+export type ContentTranslation = Tables<'content_translations'>

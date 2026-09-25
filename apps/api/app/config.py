@@ -9,8 +9,9 @@ class Settings(BaseSettings):
     supabase_url: str
     supabase_service_role_key: str
 
-    # LLM (Claude) via o proxy AWS empresarial — mesmo padrão dos projetos
-    # `explicador`/`portifolio`. NÃO é a API pública direta da Anthropic.
+    # Provedor "anthropic-env": Claude via o proxy AWS empresarial — mesmo padrão
+    # dos projetos `explicador`/`portifolio`. Outros provedores (e as suas chaves,
+    # no Vault) configuram-se no painel — ver app/llm.py.
     anthropic_api_key: str
     anthropic_base_url: str = "https://aws-external-anthropic.us-east-2.api.aws"
     anthropic_workspace_id: str = ""
@@ -22,6 +23,8 @@ class Settings(BaseSettings):
     trends_sync_interval_min: int = 10
     generate_poll_interval_min: int = 2
     max_generate_attempts: int = 3
+    # traduções dos artigos publicados (settings.translation) — ver services/translate.py
+    translate_poll_interval_min: int = 2
     # topics presos em 'processing' há mais do que isto (ex.: backend reiniciou
     # a meio de uma geração) passam a 'failed' em vez de ficarem órfãos para sempre
     stale_processing_minutes: int = 15

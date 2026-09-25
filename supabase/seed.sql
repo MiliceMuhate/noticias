@@ -69,7 +69,8 @@ insert into public.settings (key, value) values
      "write_article": "claude-haiku-4-5",
      "package": "claude-haiku-4-5",
      "self_audit": "claude-haiku-4-5",
-     "rewrite_flagged": "claude-haiku-4-5"
+     "rewrite_flagged": "claude-haiku-4-5",
+     "translate": "claude-haiku-4-5"
    }'::jsonb),
 
   -- vocabulário fechado de tags (docs/publicador/EDITORIAL.md §7) — o gerador
@@ -85,7 +86,29 @@ insert into public.settings (key, value) values
 
   -- piloto automático (apps/web Automacao.tsx): desligado por omissão — ligar
   -- é uma decisão humana explícita, não o default
-  ('autopilot', '{"enabled": false, "auto_published_streak": 0}'::jsonb)
+  ('autopilot', '{"enabled": false, "auto_published_streak": 0}'::jsonb),
+
+  -- Fase 7 (ver migração 20260925000001_i18n_ai_providers_policy.sql, onde
+  -- está a explicação de cada uma — são editáveis no painel, Configuração)
+  ('ai_providers', '{
+     "default": {"provider": "anthropic-env", "model": "claude-haiku-4-5"},
+     "providers": [
+       {
+         "id": "anthropic-env",
+         "label": "Anthropic (proxy AWS, credenciais do .env)",
+         "kind": "anthropic",
+         "use_env_credentials": true,
+         "models": [
+           {"id": "claude-haiku-4-5", "input_usd_per_mtok": 1.0, "output_usd_per_mtok": 5.0},
+           {"id": "claude-sonnet-5", "input_usd_per_mtok": 2.0, "output_usd_per_mtok": 10.0},
+           {"id": "claude-opus-5", "input_usd_per_mtok": 5.0, "output_usd_per_mtok": 25.0}
+         ]
+       }
+     ]
+   }'::jsonb),
+  ('autopilot_policy', '{"min_originality": "pass", "min_audit": "aprovado"}'::jsonb),
+  ('editorial_pipeline', '{"rewrite_on_audit_review": true, "audit_strictness": "normal"}'::jsonb),
+  ('translation', '{"enabled": true, "languages": ["en", "es", "fr"], "max_attempts": 3}'::jsonb)
 on conflict (key) do update set value = excluded.value;
 
 -- fonte de exemplo: feed RSS de futebol da ESPN (confirmado ativo/válido).

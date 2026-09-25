@@ -77,6 +77,18 @@ scheduler interno (APScheduler, arrancado no `lifespan` da app — ver `app/main
   `MAX_GENERATE_ATTEMPTS` (contados em `jobs`).
 - `POST /admin/detect-now` e `POST /admin/generate-now` disparam os dois ciclos fora do
   intervalo normal (gatilho manual, ex.: botão no painel).
+- **`translate_published`** (2 min por omissão, `settings.translation`): traduz os
+  artigos pt **publicados** para en/es/fr (`app/services/translate.py`, passo LLM
+  `translate`) e grava `content_translations`. Cada tradução passa pelo portão de
+  originalidade contra o texto da fonte — a fonte costuma estar em inglês, e traduzir
+  a reescrita pt de volta pode reaproximá-la do original — e só fica `ready` se não
+  bloquear. Se o pt for editado, `source_hash` deixa de bater e retraduz.
+- **LLM configurável** (`app/llm.py`): cada passo pede o modelo pelo nome do passo;
+  `resolve_step` lê `settings.model_by_step` + `settings.ai_providers` (cache 30 s) e
+  chama `/v1/messages` (tipo `anthropic`) ou `/chat/completions` (tipo
+  `openai_compatible`, com recuo automático de `json_schema` para `json_object`). A
+  chave vem do Vault (`get_ai_provider_key`, só `service_role`) ou do `.env` para o
+  provedor `anthropic-env`. O custo de cada chamada usa o preço do modelo que a fez.
 - **`autopilot_tick`** (20s por omissão, sempre agendado mas quase sempre um no-op): só
   faz algo se `settings.autopilot.enabled=true`. Quando ligado, cada ciclo corre
   `sync_trends` → `generate_pending` (lote maior, 25) → `auto_publish_ready` — deteta,
@@ -85,9 +97,11 @@ scheduler interno (APScheduler, arrancado no `lifespan` da app — ver `app/main
   publicação logo que ELA PRÓPRIA termina de gerar, não só no fim do lote inteiro —
   com lotes de 25 topics a 6 chamadas de LLM cada, esperar pelo lote todo podia levar
   dezenas de minutos até a primeira peça pronta chegar a publicar. `auto_publish_ready`
-  só publica `content_items` com `metadata.originality.verdict='pass'` **e**
-  (sem auditoria, ou `self_audit.veredicto='aprovado'`) — qualquer coisa marcada
-  `review` fica sempre em `pending_review`, para um humano ver em `/admin/automacao`.
+  só publica o que `settings.autopilot_policy` aceita — por omissão
+  `metadata.originality.verdict='pass'` **e** (sem auditoria, ou
+  `self_audit.veredicto='aprovado'`); o operador pode alargar a `review`/`rever` no
+  painel (guardrail #1 no CLAUDE.md). `block`/`bloquear` nunca publicam. O que não
+  cumprir fica em `pending_review`, para um humano ver em `/admin/automacao`.
   Aplica também, do lado da app (sem equivalente na BD), `max_per_source_per_day` e
   `require_manual_edit_every_n` de `settings.publishing_limits`.
 

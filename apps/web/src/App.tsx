@@ -12,13 +12,19 @@ import NewsList from './pages/public/NewsList'
 import ArticlePage from './pages/public/ArticlePage'
 import PrivacyPolicy from './pages/public/PrivacyPolicy'
 import NotFound from './pages/public/NotFound'
+import { PREFIXED_LANGS } from './lib/i18n'
+
+// '' = português (raiz); os outros com prefixo — ver lib/i18n.ts
+const LANG_PREFIXES = ['', ...PREFIXED_LANGS.map((lang) => `/${lang}`)]
 
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<NewsList />} />
-      <Route path="/artigo/:slug" element={<ArticlePage />} />
-      <Route path="/politica-de-privacidade" element={<PrivacyPolicy />} />
+      {LANG_PREFIXES.flatMap((prefix) => [
+        <Route key={`${prefix}/`} path={`${prefix}/`} element={<NewsList />} />,
+        <Route key={`${prefix}/artigo`} path={`${prefix}/artigo/:slug`} element={<ArticlePage />} />,
+        <Route key={`${prefix}/privacidade`} path={`${prefix}/politica-de-privacidade`} element={<PrivacyPolicy />} />,
+      ])}
       <Route path="/admin/*" element={<Admin />} />
       <Route path="*" element={<NotFound />} />
     </Routes>

@@ -4,17 +4,17 @@ import type { Job } from '@repo/shared'
 import { supabase } from '../lib/supabase'
 
 /**
- * Gastos IA — custo estimado das gerações de artigo (ver docs/DATA_MODEL.md,
- * jobs.input_tokens/output_tokens/cost_usd). Estimativa com base nos preços
- * públicos da API Anthropic (apps/api/app/pricing.py) — a chave real corre por
- * um proxy AWS empresarial, cujo tarifário pode divergir.
+ * Gastos IA — custo estimado das gerações e traduções de artigo (ver
+ * docs/DATA_MODEL.md, jobs.input_tokens/output_tokens/cost_usd). Estimativa com
+ * os preços por modelo definidos em Configuração → Provedores de IA (ou, sem
+ * preço lá, a tabela de apps/api/app/pricing.py).
  */
 
 async function fetchJobs(): Promise<Job[]> {
   const { data, error } = await supabase
     .from('jobs')
     .select('*')
-    .eq('type', 'generate-article')
+    .in('type', ['generate-article', 'translate-article'])
     .order('created_at', { ascending: false })
     .limit(200)
   if (error) throw new Error(error.message)
@@ -34,7 +34,8 @@ function formatTokens(value: number): string {
 }
 
 function jobTerm(job: Job): string {
-  const payload = job.payload as { term?: string } | null
+  const payload = job.payload as { term?: string; lang?: string; title?: string } | null
+  if (job.type === 'translate-article') return `🌐 ${payload?.lang?.toUpperCase() ?? '?'} · ${payload?.title ?? '—'}`
   return payload?.term ?? '—'
 }
 

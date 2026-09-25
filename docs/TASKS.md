@@ -110,6 +110,44 @@ Especificação completa em `docs/publicador/` (`TASKS_CONTENT.md`, `PROMPTS.md`
       sem equivalente ao nível da BD — só o piloto automático os respeita; uma
       aprovação manual avulsa no dashboard não é limitada por eles.
 
+## Fase 7 — Multi-língua, provedores de IA e política editorial no painel
+
+`supabase/migrations/20260925000001_i18n_ai_providers_policy.sql`,
+`apps/api/app/llm.py`, `apps/api/app/services/translate.py`,
+`apps/web/src/lib/i18n.ts`, `apps/web/server.js`, `apps/web/src/pages/config/`.
+
+- [x] **Site em pt/en/es/fr.** pt na raiz (URLs já indexados não mudam), outras
+      línguas com prefixo. `published_articles` passa a ter uma linha por
+      (artigo, língua), com `lang` e `alternates` → `hreflang` no `<head>` e no
+      `sitemap.xml`, `<html lang>`, `og:locale`, `inLanguage`.
+- [x] Deteção automática em `server.js`: país (`CF-IPCountry` e afins) → língua;
+      sem país, `Accept-Language`; crawlers nunca são redirecionados. O seletor no
+      cabeçalho grava o cookie `lang`, que passa à frente da deteção. Um slug de
+      outra língua (ex.: pt aberto com `/en/`) responde 301 para a versão certa.
+- [x] Traduções geradas pelo backend (`translate_published`, 2 min) a partir do pt
+      **publicado**; cada tradução passa pelo portão de originalidade contra a
+      fonte (mesma língua → comparação significativa) e só fica `ready` se não
+      bloquear. Edições ao pt refazem as traduções (`source_hash`).
+- [x] **Provedores de IA configuráveis** sem mexer no código: tipo `anthropic` ou
+      `openai_compatible`, URL, cabeçalhos, modelos e preços em
+      `settings.ai_providers`; chave no Vault (`set_ai_provider_key`, só
+      operadores escrevem, só `service_role` lê). Provedor e modelo por passo em
+      `model_by_step` (formato antigo, só o nome do modelo, continua a funcionar).
+      Custo por chamada com o preço do modelo usado (antes assumia um modelo único).
+- [x] **Política editorial no painel** (Configuração): o que o piloto publica
+      sozinho (`autopilot_policy` — ver guardrail #1 no CLAUDE.md), rigor da
+      auditoria e reescrita também em `rever` (`editorial_pipeline`), limiares de
+      originalidade, pontuação, voz/autoria/tags, línguas das traduções.
+- [x] Fila de revisão mostra o veredicto e os achados da auditoria; o distintivo
+      determinístico passa a dizer "Sem cópia literal" (não "Original").
+- [x] Citações: a ficha de factos guarda também a tradução pt (`traducao`); o
+      artigo usa-a e o portão aceita-a como citação autorizada.
+- [ ] Por fazer: categorias (`topics.category`) não são traduzidas; o painel
+      /admin fica só em português; não há botão "testar ligação" por provedor.
+      As rotas `/admin/*` da API não verificam quem as chama — hoje só são
+      acessíveis dentro da VPS (`127.0.0.1:8000`, ver `deploy/docker-compose.yml`);
+      antes de expor a API ao browser, exigir o JWT do Supabase de um operador.
+
 ## Definição de "concluído" (qualquer fase)
 
 - Corre localmente com `supabase start` + `apps/api` (uvicorn) + `apps/web`.

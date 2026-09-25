@@ -1,15 +1,55 @@
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Source } from '@repo/shared'
 import { supabase } from '../lib/supabase'
+import AiProvidersSection from './config/AiProvidersSection'
+import EditorialSection from './config/EditorialSection'
+import TranslationSection from './config/TranslationSection'
+import VoiceSection from './config/VoiceSection'
 
-/** Configuração: fontes de tendências de futebol (ligar/desligar), ritmo de publicação. */
+/**
+ * Configuração — tudo o que muda o comportamento do sistema sem deploy (lido
+ * pelo backend a cada ciclo, a partir de `settings`). Separadores no URL
+ * (?sec=...) para se poder partilhar/voltar a um sítio.
+ */
+
+const TABS = [
+  { key: 'publicacao', label: 'Publicação' },
+  { key: 'editorial', label: 'Motor editorial' },
+  { key: 'ia', label: 'Provedores de IA' },
+  { key: 'voz', label: 'Voz e autoria' },
+  { key: 'traducoes', label: 'Traduções' },
+  { key: 'fontes', label: 'Fontes' },
+] as const
+
+type TabKey = (typeof TABS)[number]['key']
 
 export default function Config() {
+  const [params, setParams] = useSearchParams()
+  const current = (TABS.find((t) => t.key === params.get('sec'))?.key ?? 'publicacao') as TabKey
+
   return (
-    <div className="space-y-8">
-      <PublishingLimitsSection />
-      <SourcesSection />
+    <div className="space-y-6">
+      <nav className="flex gap-1 overflow-x-auto border-b border-slate-200">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setParams({ sec: t.key }, { replace: true })}
+            className={`shrink-0 whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium ${
+              current === t.key ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </nav>
+      {current === 'publicacao' && <PublishingLimitsSection />}
+      {current === 'editorial' && <EditorialSection />}
+      {current === 'ia' && <AiProvidersSection />}
+      {current === 'voz' && <VoiceSection />}
+      {current === 'traducoes' && <TranslationSection />}
+      {current === 'fontes' && <SourcesSection />}
     </div>
   )
 }

@@ -24,6 +24,16 @@ interface OriginalityMetadata {
   longest_common_run: number
 }
 
+/** metadata.self_audit — auditoria por IA (apps/api/app/services/self_audit.py).
+ * É ela que decide se o piloto publica sozinho (settings.autopilot_policy). */
+interface AuditMetadata {
+  veredicto: 'aprovado' | 'rever' | 'bloquear'
+  resumo: string
+  copiado: { artigo: string; original: string; palavras: number }[]
+  inventado: { trecho: string; porque: string }[]
+  decalcado: { sim: boolean; explicacao: string }
+}
+
 interface ContentMeta {
   variation?: string
   desk?: string
@@ -31,6 +41,7 @@ interface ContentMeta {
   source_name?: string
   source_url?: string
   originality?: OriginalityMetadata
+  self_audit?: AuditMetadata | null
   afirmacoes_de_contexto?: string[]
   alternativas?: string[]
 }
@@ -263,10 +274,16 @@ export default function ReviewQueue() {
 
 function OriginalityBadge({ originality }: { originality?: OriginalityMetadata }) {
   if (!originality) return null
+  // Só mede palavras iguais à fonte — com a fonte noutra língua, uma tradução à
+  // letra passa aqui. Por isso "sem cópia literal", não "original": quem diz se
+  // o texto é mesmo próprio é a auditoria (AuditBadge).
   if (originality.verdict === 'pass') {
     return (
-      <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
-        🟢 Original · LCR {originality.longest_common_run} · {(originality.containment_5 * 100).toFixed(1)}%
+      <span
+        title="Portão determinístico: maior sequência de palavras iguais à fonte (LCR) e fração do texto presente na fonte."
+        className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800"
+      >
+        🟢 Sem cópia literal · LCR {originality.longest_common_run} · {(originality.containment_5 * 100).toFixed(1)}%
       </span>
     )
   }
@@ -274,6 +291,70 @@ function OriginalityBadge({ originality }: { originality?: OriginalityMetadata }
     <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
       🟡 Verificar ({originality.reasons.join(', ')})
     </span>
+  )
+}
+
+const AUDIT_STYLE: Record<AuditMetadata['veredicto'], { label: string; className: string }> = {
+  aprovado: { label: '✅ Auditoria: aprovado', className: 'bg-green-100 text-green-800' },
+  rever: { label: '🟡 Auditoria: rever', className: 'bg-amber-100 text-amber-800' },
+  bloquear: { label: '🔴 Auditoria: bloquear', className: 'bg-red-100 text-red-800' },
+}
+
+function AuditBadge({ audit }: { audit?: AuditMetadata | null }) {
+  if (!audit) return null
+  const style = AUDIT_STYLE[audit.veredicto]
+  return (
+    <span title={audit.resumo} className={`rounded-full px-2 py-0.5 text-xs font-medium ${style.className}`}>
+      {style.label}
+    </span>
+  )
+}
+
+/** O que a auditoria encontrou — o mesmo que impede o piloto de publicar sozinho. */
+function AuditDetails({ audit }: { audit: AuditMetadata }) {
+  const issues = audit.copiado.length + audit.inventado.length + (audit.decalcado.sim ? 1 : 0)
+  if (audit.veredicto === 'aprovado' && issues === 0) return null
+  return (
+    <details open={audit.veredicto !== 'aprovado'} className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+      <summary className="cursor-pointer font-semibold">
+        Auditoria: {audit.resumo}
+      </summary>
+      {audit.copiado.length > 0 && (
+        <div className="mt-2">
+          <p className="mb-1 font-semibold uppercase tracking-wide text-amber-800">Próximo do original ({audit.copiado.length})</p>
+          <ul className="space-y-1.5">
+            {audit.copiado.map((c, i) => (
+              <li key={i} className="grid gap-1 rounded bg-white/60 p-1.5 sm:grid-cols-2">
+                <span>
+                  <span className="text-amber-700">nosso:</span> {c.artigo}
+                </span>
+                <span>
+                  <span className="text-amber-700">fonte:</span> {c.original}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {audit.inventado.length > 0 && (
+        <div className="mt-2">
+          <p className="mb-1 font-semibold uppercase tracking-wide text-amber-800">Não está na fonte ({audit.inventado.length})</p>
+          <ul className="space-y-1.5">
+            {audit.inventado.map((c, i) => (
+              <li key={i} className="rounded bg-white/60 p-1.5">
+                “{c.trecho}” — <span className="text-amber-700">{c.porque}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {audit.decalcado.sim && (
+        <p className="mt-2">
+          <span className="font-semibold uppercase tracking-wide text-amber-800">Estrutura decalcada:</span>{' '}
+          {audit.decalcado.explicacao}
+        </p>
+      )}
+    </details>
   )
 }
 
@@ -341,6 +422,7 @@ function ReviewCard({
             <OriginalityBadge originality={originality} />
           </>
         )}
+        {meta?.self_audit && <AuditBadge audit={meta.self_audit} />}
       </div>
       {meta?.source_url && (
         <a
@@ -408,6 +490,8 @@ function ReviewCard({
           </div>
         </div>
       )}
+
+      {meta?.self_audit && <AuditDetails audit={meta.self_audit} />}
 
       {meta?.afirmacoes_de_contexto && meta.afirmacoes_de_contexto.length > 0 && (
         <details className="mt-3 rounded-md border border-slate-200 p-2 text-xs">

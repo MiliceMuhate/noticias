@@ -4,6 +4,7 @@ Node — ver docs/ARCHITECTURE.md). Dois ciclos:
 
 - sync_trends: descobre artigos novos (fontes RSS ativas) + pontua os que ficaram 'detected'.
 - generate_pending: gera a reescrita para topics em 'approved_for_gen'.
+- translate_published: traduz os artigos publicados (settings.translation).
 """
 
 from __future__ import annotations
@@ -19,10 +20,11 @@ from .db import supabase
 from .exceptions import TopicRejected
 from .llm import UsageTracker
 from .log import log, log_error
-from .pricing import estimate_cost_usd
 from .services.articles import generate_article
 from .services.news_sources import news_source_for
 from .services.scoring import score_topic
+from .services.translate import translate_published
+from .settings_store import DEFAULT_AUTOPILOT_POLICY, settings_dict
 
 scheduler = AsyncIOScheduler()
 
@@ -214,7 +216,7 @@ async def _generate_one(topic: dict[str, Any]) -> None:
 
     try:
         item_id = await generate_article(topic, tracker)
-        cost_usd = estimate_cost_usd(settings.anthropic_model, tracker.input_tokens, tracker.output_tokens)
+        cost_usd = round(tracker.cost_usd, 6)
         if job_id:
             supabase.table("jobs").update(
                 {
@@ -232,7 +234,7 @@ async def _generate_one(topic: dict[str, Any]) -> None:
         # portão editorial (P1/P2, docs/publicador/PROMPTS.md): não é uma falha a
         # repetir, é a redação a decidir que este assunto não dá artigo. Vai direto
         # a 'rejected', nunca conta para MAX_GENERATE_ATTEMPTS.
-        cost_usd = estimate_cost_usd(settings.anthropic_model, tracker.input_tokens, tracker.output_tokens)
+        cost_usd = round(tracker.cost_usd, 6)
         if job_id:
             supabase.table("jobs").update(
                 {
@@ -247,7 +249,7 @@ async def _generate_one(topic: dict[str, Any]) -> None:
         log("generate_pending", f'topic "{topic["term"]}" rejeitado pela redação: {reason}')
     except Exception as err:
         log_error("generate_pending", f'topic "{topic["term"]}" falhou (tentativa {attempt_no})', err)
-        cost_usd = estimate_cost_usd(settings.anthropic_model, tracker.input_tokens, tracker.output_tokens)
+        cost_usd = round(tracker.cost_usd, 6)
         if job_id:
             supabase.table("jobs").update(
                 {
@@ -327,17 +329,26 @@ async def autopilot_tick() -> None:
     ).eq("key", AUTOPILOT_KEY).execute()
 
 
-def _is_autopublish_ready(meta: dict[str, Any]) -> bool:
+# o que cada nível mínimo aceita — "block"/"bloquear" nunca, em nenhum nível
+_ORIGINALITY_ACCEPTS = {"pass": {"pass"}, "review": {"pass", "review"}}
+_AUDIT_ACCEPTS = {"aprovado": {"aprovado"}, "rever": {"aprovado", "rever"}}
+
+
+def _is_autopublish_ready(meta: dict[str, Any], policy: dict[str, Any]) -> bool:
     """
-    Só publica sozinho o que o motor editorial (docs/publicador) já validou sem
-    reservas: portão de originalidade 'pass' (nunca 'review' — isso é sempre
-    para olhos humanos) e, quando a auditoria correu, veredicto 'aprovado'.
+    Só publica sozinho o que o motor editorial (docs/publicador) validou dentro
+    da política definida no painel (settings.autopilot_policy). Por omissão o
+    mais rigoroso: originalidade 'pass' e auditoria 'aprovado'. Aceitar
+    'review'/'rever' é uma escolha explícita do operador que alarga a exceção
+    do guardrail #1 (ver CLAUDE.md) — nunca o comportamento por omissão.
     """
+    originality_ok = _ORIGINALITY_ACCEPTS.get(policy.get("min_originality"), {"pass"})
+    audit_ok = _AUDIT_ACCEPTS.get(policy.get("min_audit"), {"aprovado"})
     originality = meta.get("originality") or {}
-    if originality.get("verdict") != "pass":
+    if originality.get("verdict") not in originality_ok:
         return False
     audit = meta.get("self_audit")
-    if audit and audit.get("veredicto") != "aprovado":
+    if audit and audit.get("veredicto") not in audit_ok:
         return False
     return True
 
@@ -359,8 +370,9 @@ async def auto_publish_ready() -> None:
     removido a pedido do operador, não interessava espaçar publicações no
     tempo.)
     """
-    cfg = _settings_map(["publishing_limits", AUTOPILOT_KEY])
+    cfg = _settings_map(["publishing_limits", AUTOPILOT_KEY, "autopilot_policy"])
     limits = cfg.get("publishing_limits") or {}
+    policy = settings_dict(cfg, "autopilot_policy", DEFAULT_AUTOPILOT_POLICY)
     autopilot_cfg = cfg.get(AUTOPILOT_KEY) or {}
     streak = int(autopilot_cfg.get("auto_published_streak") or 0)
     require_manual_every_n = limits.get("require_manual_edit_every_n") or 0
@@ -373,7 +385,7 @@ async def auto_publish_ready() -> None:
         .order("created_at")
         .execute()
     )
-    candidates = [item for item in (items_res.data or []) if _is_autopublish_ready(item.get("metadata") or {})]
+    candidates = [item for item in (items_res.data or []) if _is_autopublish_ready(item.get("metadata") or {}, policy)]
     if not candidates:
         return
 
@@ -430,6 +442,14 @@ def start() -> None:
         generate_pending, "interval", minutes=settings.generate_poll_interval_min, id="generate_pending", next_run_time=now
     )
     scheduler.add_job(
+        translate_published,
+        "interval",
+        minutes=settings.translate_poll_interval_min,
+        id="translate_published",
+        next_run_time=now,
+        max_instances=1,
+    )
+    scheduler.add_job(
         autopilot_tick,
         "interval",
         seconds=settings.autopilot_tick_interval_sec,
@@ -441,6 +461,7 @@ def start() -> None:
         "scheduler",
         f"a arrancar -- sync_trends a cada {settings.trends_sync_interval_min}min, "
         f"generate_pending a cada {settings.generate_poll_interval_min}min, "
+        f"translate_published a cada {settings.translate_poll_interval_min}min, "
         f"autopilot_tick a cada {settings.autopilot_tick_interval_sec}s (só ativo com settings.autopilot.enabled)",
     )
 

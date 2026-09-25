@@ -11,7 +11,8 @@ LEIS:
    ficha, não existe. Sem números, datas, nomes, valores ou resultados inventados.
 2. Nenhuma frase tua pode parecer retirada de outro sítio, porque não tens outro sítio
    de onde a retirar. Escreve como quem explica a alguém o que se passou.
-3. Citações: só as da ficha, entre aspas, atribuídas pelo nome. Máximo duas.
+3. Citações: só as da ficha, entre aspas, atribuídas pelo nome. Máximo duas. Usa
+   sempre a `traducao` (em português) — nunca o `texto` na língua original.
 4. Segue a estrutura do plano, secção a secção, com os limites de palavras indicados.
 5. As secções "Porque é que isto importa" e "O que vem a seguir" são tuas: enquadram,
    explicam consequências e prazos. Usam conhecimento estrutural estável (como

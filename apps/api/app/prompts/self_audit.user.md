@@ -20,3 +20,5 @@ Como decidir o veredicto:
   publicar, mas nada que pareça deliberado ou grave.
 - "bloquear" — cópia substancial e inequívoca, vários factos específicos
   inventados, ou o artigo é no fundo uma tradução do original disfarçada.
+
+{{strictness}}

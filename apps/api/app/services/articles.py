@@ -23,7 +23,7 @@ from ..exceptions import TopicRejected
 from ..llm import UsageTracker, complete_json
 from ..log import log_error
 from ..prompts import render
-from ..settings_store import get_settings, model_for_step
+from ..settings_store import DEFAULT_EDITORIAL_PIPELINE, get_settings, settings_dict
 from .brief import EditorialBrief, editorial_brief
 from .entities import entities_from_facts
 from .facts import FactSheet, extract_facts
@@ -185,7 +185,7 @@ async def write_article(
         prompt=user,
         schema=WRITE_SCHEMA,
         max_tokens=6144,
-        model=model_for_step("write_article"),
+        step="write_article",
         tracker=tracker,
     )
     return WriteResult.model_validate(data)
@@ -244,7 +244,7 @@ async def package(
         prompt=user,
         schema=PACKAGE_SCHEMA,
         max_tokens=1024,
-        model=model_for_step("package"),
+        step="package",
         tracker=tracker,
     )
     return PackageResult.model_validate(data)
@@ -331,11 +331,13 @@ async def generate_article(topic: dict[str, Any], tracker: UsageTracker) -> str:
 
     # settings primeiro, antes de gastar tempo/dinheiro em rede/LLM — um valor mal
     # formado cai para o omisso (ver _settings_dict/_settings_list), nunca rebenta.
-    cfg = get_settings(["authors", "editorial_voice", "controlled_tags", "originality_thresholds"])
+    cfg = get_settings(["authors", "editorial_voice", "controlled_tags", "originality_thresholds", "editorial_pipeline"])
     authors_cfg = _settings_dict(cfg, "authors", DEFAULT_AUTHORS)
     voice_cfg = _settings_dict(cfg, "editorial_voice", DEFAULT_VOICE)
     controlled_tags = _settings_list(cfg, "controlled_tags", DEFAULT_CONTROLLED_TAGS)
     thresholds = _settings_dict(cfg, "originality_thresholds", DEFAULT_ORIGINALITY_THRESHOLDS)
+    pipeline = settings_dict(cfg, "editorial_pipeline", DEFAULT_EDITORIAL_PIPELINE)
+    strictness = pipeline.get("audit_strictness") or "normal"
 
     # 1. Artigo real de uma fonte configurada (guardrail #2)
     source = mock_source_article(link) if settings.allow_mock_facts else fetch_source_article(link)
@@ -391,7 +393,8 @@ async def generate_article(topic: dict[str, Any], tracker: UsageTracker) -> str:
 
     # Portão determinístico (grátis, sem LLM) + auditoria (P5) + reescrita dirigida (P6)
     entities = entities_from_facts(facts)
-    allowed_quotes = [c.texto for c in facts.citacoes]
+    # a tradução de cada citação também é autorizada — é a que o artigo usa
+    allowed_quotes = [q for c in facts.citacoes for q in (c.texto, c.traducao) if q]
     recent_bodies = await _recent_bodies_last_72h()
 
     report = check_originality(
@@ -406,11 +409,15 @@ async def generate_article(topic: dict[str, Any], tracker: UsageTracker) -> str:
 
     audit: AuditResult | None = None
     if report.verdict != "block":
-        audit = await self_audit(body, source.text, facts, tracker)
+        audit = await self_audit(body, source.text, facts, tracker, strictness)
 
-    blocked = report.verdict == "block" or (audit is not None and audit.veredicto == "bloquear")
-    if blocked:
-        audit_wants_rewrite = audit is not None and audit.veredicto == "bloquear"
+    # "rever" também passa pela reescrita dirigida quando o painel o pede
+    # (editorial_pipeline.rewrite_on_audit_review): sem isto, os casos menores
+    # que o auditor aponta (frase traduzida à letra, citação deixada em inglês)
+    # ficavam no artigo e o piloto nunca o podia publicar.
+    audit_rewrite_verdicts = {"bloquear", "rever"} if pipeline.get("rewrite_on_audit_review") else {"bloquear"}
+    audit_wants_rewrite = audit is not None and audit.veredicto in audit_rewrite_verdicts
+    if report.verdict == "block" or audit_wants_rewrite:
         if report.verdict == "block" and not _rewrite_can_help(report) and not audit_wants_rewrite:
             # estrutura em falta ou artigo curto demais — reescrever só os trechos
             # assinalados (P6) não resolve isto; mais vale falhar já e deixar o
@@ -432,7 +439,7 @@ async def generate_article(topic: dict[str, Any], tracker: UsageTracker) -> str:
         )
         if report.verdict == "block":
             raise GenerationError(f"bloqueado pelo portão de originalidade após reescrita: {report.reasons}")
-        audit = await self_audit(body, source.text, facts, tracker)
+        audit = await self_audit(body, source.text, facts, tracker, strictness)
         if audit.veredicto == "bloquear":
             raise GenerationError(f"bloqueado pela auditoria após reescrita: {audit.resumo}")
 

@@ -24,13 +24,20 @@ nem destinos externos como WordPress/YouTube/redes sociais).
   sem Edge Functions, sem Cron/Queues do Supabase (ver Arquitetura).
 - **Backend de aplicação:** **FastAPI (Python)**, serviço único (`apps/api`, deploy em
   Railway/Render/Fly). Liga-se ao Supabase com a `service_role` key. Corre o seu próprio
-  scheduler interno (APScheduler) que deteta tendências, pontua e gera artigos (cadeia LLM)
-  — substitui por completo o que antes eram Edge Functions Deno + worker Node.
+  scheduler interno (APScheduler) que deteta tendências, pontua, gera artigos (cadeia LLM)
+  e traduz os publicados — substitui por completo o que antes eram Edge Functions Deno +
+  worker Node.
 - **Frontend:** React + Vite + TypeScript, com **SSR** no site público (`apps/web/server.js`,
   Express + `src/entry-server.tsx` — ver Arquitetura §3). Cliente `@supabase/supabase-js` (só chave `anon`).
   TailwindCSS. TanStack Query. Serve **duas coisas**: o site público de notícias (`/`,
   `/artigo/:slug`, sem login) e o painel operacional (`/admin/*`, com login).
-- **LLM:** API Anthropic (Claude) para a redação dos artigos.
+- **LLM:** provedor configurável no painel (`settings.ai_providers` + `model_by_step`,
+  chaves no Supabase Vault) — API Anthropic ou qualquer API compatível com OpenAI, por
+  passo da cadeia (`apps/api/app/llm.py`). O provedor por omissão é Claude via o proxy
+  AWS com as credenciais do `.env`.
+- **Site multi-língua:** pt na raiz, `/en/`, `/es/`, `/fr/` com prefixo; língua do
+  visitante detetada em `apps/web/server.js` (país, depois `Accept-Language`), a
+  escolha manual (cookie `lang`) passa à frente. Ver `apps/web/src/lib/i18n.ts`.
 
 ## Estrutura de pastas (alvo)
 
@@ -55,12 +62,21 @@ sem valor. Ignorá-las mata o projeto (desindexação no Google). Ver `docs/PRD.
    **Exceção deliberada (Fase 6, `docs/TASKS.md`):** com `settings.autopilot.enabled=true`,
    o backend (`service_role`, nunca outra chave) pode publicar sem `auth.uid()` — a
    decisão humana passa a ser ligar o interruptor (por lote), não aprovar cada peça.
-   Só publica sozinho o que o motor editorial validou sem reservas (originalidade
-   `pass`, auditoria `aprovado`); tudo o resto fica em `pending_review` para um humano
-   ver em `/admin/automacao`. Não alargar esta exceção (ex.: publicar peças `review`,
-   remover o requisito de `service_role`) sem o utilizador pedir explicitamente — foi
-   uma escolha informada dele, feita depois de eu ter sinalizado o conflito com esta
-   regra, não o comportamento por omissão do projeto.
+   Por omissão só publica sozinho o que o motor editorial validou sem reservas
+   (originalidade `pass`, auditoria `aprovado`); tudo o resto fica em `pending_review`
+   para um humano ver em `/admin/automacao`.
+   **Alargamento deliberado (Fase 7, 2026-09-25):** o operador pediu explicitamente
+   que este rigor fosse configurável no painel — `settings.autopilot_policy`
+   (`min_originality: pass|review`, `min_audit: aprovado|rever`). O valor por omissão
+   continua o mais rigoroso; aceitar `review`/`rever` é uma escolha do operador no
+   painel, avisada no ecrã. `block`/`bloquear` nunca publicam, em nenhum nível, e o
+   requisito de `service_role` mantém-se. Não alargar mais (ex.: publicar
+   `block`, permitir outra chave que não a `service_role`, mudar o omisso para
+   `review`) sem o utilizador pedir explicitamente.
+   **Traduções (Fase 7):** as versões en/es/fr de um artigo publicado ficam visíveis
+   sem nova aprovação — derivam do texto pt que já foi aprovado, e só aparecem se
+   passarem o portão de originalidade contra a fonte (`services/translate.py`).
+   Deixam de aparecer se o pt for retirado.
 2. **Nunca inventar.** Todo o artigo é a reescrita de uma notícia real, já publicada por
    uma fonte RSS configurada (nunca pesquisa aberta) — o texto original vive em
    `sport_facts`. O LLM reformula nas próprias palavras (nunca copia frases inteiras) e a

@@ -148,7 +148,7 @@ Configuração global (key/value).
 
 | coluna | tipo | notas |
 |---|---|---|
-| key | text PK | `'scoring_weights'`, `'score_threshold'`, `'auto_approve_gen'`, `'authors'`, `'editorial_voice'`, `'originality_thresholds'`, `'model_by_step'`, `'controlled_tags'`, `'publishing_limits'`, `'autopilot'` |
+| key | text PK | `'scoring_weights'`, `'score_threshold'`, `'auto_approve_gen'`, `'authors'`, `'editorial_voice'`, `'originality_thresholds'`, `'model_by_step'`, `'controlled_tags'`, `'publishing_limits'`, `'autopilot'`, `'autopilot_policy'`, `'editorial_pipeline'`, `'ai_providers'`, `'translation'` |
 | value | jsonb | |
 
 Chaves do motor editorial (`docs/publicador/`), todas seedadas com valores por
@@ -157,10 +157,40 @@ omissão em `supabase/seed.sql` e ajustáveis sem novo deploy:
 - `authors` — `{byline, editor, ai_assisted, desks: {resultados|transferencias|analise|institucional: {beat, voice}}}`. `editor` precisa do nome real do operador antes de publicar a sério.
 - `editorial_voice` — `{variant, person, register, sentence_target_words, paragraph_max_sentences, cliche_blacklist}`.
 - `originality_thresholds` — limiares `{pass, block}` por métrica do portão (`docs/publicador/ORIGINALITY.md` §2); calibrar com `apps/api/scripts/calibrate_originality.py` depois dos primeiros ~20 artigos.
-- `model_by_step` — modelo Anthropic por passo (`extract_facts`, `editorial_brief`, `write_article`, `package`, `self_audit`, `rewrite_flagged`); todos apontam ao mesmo modelo por omissão.
+- `model_by_step` — provedor e modelo por passo (`extract_facts`, `editorial_brief`, `write_article`, `package`, `self_audit`, `rewrite_flagged`, `translate`): `{"provider": "<id em ai_providers>", "model": "<id>"}`, ou só o nome do modelo (formato antigo → provedor por omissão). Passo sem entrada, ou com provedor que já não existe, usa `ai_providers.default`.
+- `ai_providers` — `{default: {provider, model}, providers: [{id, label, kind: anthropic|openai_compatible, base_url, use_env_credentials, headers, json_mode, token_param, models: [{id, input_usd_per_mtok, output_usd_per_mtok}]}]}`. `headers` só para valores **não** secretos; a chave de cada provedor vive no Vault (secção "Vault" abaixo). `use_env_credentials=true` (o provedor `anthropic-env`) usa `ANTHROPIC_*` do `.env`. Lido por `apps/api/app/llm.py` com cache de 30 s.
+- `autopilot_policy` — `{min_originality: pass|review, min_audit: aprovado|rever}`. O que `auto_publish_ready()` aceita publicar sozinho; omisso = o mais rigoroso. `block`/`bloquear` nunca publicam. Ver guardrail #1 no CLAUDE.md.
+- `editorial_pipeline` — `{rewrite_on_audit_review, audit_strictness: tolerante|normal|rigoroso}`. Reescrita dirigida (P6) também quando a auditoria diz `rever`; nível de rigor passado ao prompt da auditoria.
+- `translation` — `{enabled, languages: ["en","es","fr"], max_attempts}`.
 - `controlled_tags` — vocabulário fechado; P4 nunca inventa tags fora daqui.
 - `publishing_limits` — `{max_published_per_day, max_per_source_per_day, require_manual_edit_every_n}`; o primeiro imposto em `enforce_review_gate` (BD), sempre, independentemente de quem publica; os outros dois não têm imposição na BD — só `scheduler.auto_publish_ready()` os respeita quando o piloto automático está ligado (uma aprovação manual avulsa no dashboard não é limitada por eles) — ver `docs/publicador/TASKS_CONTENT.md` "A perguntar depois". (Existiu também `min_minutes_between_publications` — removido a pedido do operador, 2026-09-24.)
 - `autopilot` — `{enabled, auto_published_streak, started_by, started_at, stopped_by, stopped_at}`. Interruptor do piloto automático (Fase 6, `docs/TASKS.md`): com `enabled=true`, `enforce_review_gate` deixa o backend (`service_role`) publicar sem `auth.uid()` humano. Editável por qualquer operador autenticado (mesma policy de `settings`); `auto_published_streak` é escrito pelo próprio backend.
+
+### `content_translations`
+Uma tradução (en/es/fr) de um artigo pt publicado. Escrita só pelo backend
+(`service_role`); RLS: `select` para operadores.
+
+| coluna | tipo | notas |
+|---|---|---|
+| id | uuid PK | |
+| content_item_id | uuid FK → content_items | `on delete cascade`; `unique (content_item_id, lang)` |
+| lang | text | `en` \| `es` \| `fr` |
+| status | text | `ready` (visível) \| `blocked` (próxima demais da fonte) \| `failed` (erro técnico) |
+| title, body, dek, seo_description | text | |
+| tags | jsonb | lista de strings |
+| slug | text | único por língua (`content_translations_lang_slug_uniq`) |
+| source_hash | text | md5 de título+corpo do pt traduzido — se o pt mudar, retraduz |
+| originality | jsonb | relatório do portão contra o texto da fonte |
+| error | text | |
+| attempts | int | até `settings.translation.max_attempts` |
+| created_at, updated_at | timestamptz | |
+
+### Vault — chaves de provedores de IA
+Secrets com o nome `ai_provider_key:<provider_id>`. Três funções `security definer`:
+`set_ai_provider_key(p_provider_id, p_key)` (operadores; `p_key` vazio apaga;
+regista em `audit_log`), `ai_provider_key_status()` (operadores; só diz que existe
+e quando mudou, nunca o valor) e `get_ai_provider_key(p_provider_id)` (**só
+`service_role`**, é o backend que a chama).
 
 ## `published_articles` (view pública)
 
