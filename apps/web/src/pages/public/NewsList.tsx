@@ -51,7 +51,17 @@ export default function NewsList() {
         {!isLoading && !error && list.length === 0 && (
           <div className="border border-dashed border-delvis-line py-16 text-center">
             <p className="font-display text-lg font-semibold text-delvis-ink">{t('emptyTitle')}</p>
-            <p className="mt-1 text-sm text-delvis-mute">{t('emptyText')}</p>
+            {lang !== 'pt' && !category && !search ? (
+              // língua ainda sem traduções prontas (services/translate.py corre a cada ~2 min)
+              <p className="mt-1 text-sm text-delvis-mute">
+                {t('translationsPending')}{' '}
+                <Link to={localizedPath('pt', '/')} hrefLang="pt-PT" className="font-semibold text-delvis-teal underline">
+                  {t('readInPortuguese')}
+                </Link>
+              </p>
+            ) : (
+              <p className="mt-1 text-sm text-delvis-mute">{t('emptyText')}</p>
+            )}
           </div>
         )}
 

@@ -84,7 +84,7 @@ def _load_source(topic_id: str) -> tuple[str, str, set[str], list[str]]:
         supabase.table("sport_facts")
         .select("data")
         .eq("topic_id", topic_id)
-        .order("created_at", desc=True)
+        .order("fetched_at", desc=True)
         .limit(1)
         .execute()
     )
