@@ -62,6 +62,14 @@ class Provider:
     json_mode: Literal["json_schema", "json_object", "prompt"] = "json_schema"
     # alguns modelos OpenAI recentes só aceitam max_completion_tokens
     token_param: Literal["max_tokens", "max_completion_tokens"] = "max_tokens"
+    # modelos de raciocínio (ex.: Gemini 3, OpenAI o-series) gastam tokens a
+    # "pensar" ANTES de responder, e esses tokens contam para o limite — sem
+    # margem, a resposta sai cortada e o JSON não se lê. `reasoning_effort`
+    # (openai_compatible) controla quanto pensam (none/low/medium/high — cada
+    # modelo aceita valores diferentes: o botão "Testar" do painel mostra-o);
+    # `extra_tokens` soma-se ao limite de cada chamada.
+    reasoning_effort: str | None = None
+    extra_tokens: int = 0
     models: dict[str, ModelPricing] = field(default_factory=dict)
 
 
@@ -126,6 +134,8 @@ def _parse_provider(raw: dict[str, Any]) -> Provider | None:
             headers={str(k): str(v) for k, v in (raw.get("headers") or {}).items()},
             json_mode=raw.get("json_mode") or "json_schema",
             token_param=raw.get("token_param") or "max_tokens",
+            reasoning_effort=(raw.get("reasoning_effort") or None),
+            extra_tokens=max(0, int(raw.get("extra_tokens") or 0)),
             models=models,
         )
         if provider.use_env_credentials:
@@ -237,9 +247,50 @@ def _cost(provider: Provider, model: str, input_tokens: int, output_tokens: int)
 
 def _parse_json_strict(raw: str) -> dict:
     """Remove cercas de código markdown antes de fazer parse — rede de segurança
-    mesmo com saída estruturada (docs/publicador/PROMPTS.md, "erros de JSON")."""
+    mesmo com saída estruturada (docs/publicador/PROMPTS.md, "erros de JSON").
+    Alguns provedores "compatíveis" ignoram o formato pedido e escrevem texto à
+    volta do JSON ("Here is the JSON: {...}") — nesse caso lê-se o primeiro
+    objeto {...} completo."""
     cleaned = _CODE_FENCE.sub("", raw.strip()).strip()
-    return json.loads(cleaned)
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        start = cleaned.find("{")
+        if start == -1:
+            raise ValueError(f"a resposta não contém JSON: {cleaned[:200]!r}") from None
+        obj, _ = json.JSONDecoder().raw_decode(cleaned[start:])
+        return obj
+
+
+class TruncatedResponse(RuntimeError):
+    """O modelo parou por ter atingido o limite de tokens — a resposta está incompleta."""
+
+
+# erros que valem nova tentativa: sobrecarga (503 "high demand"), limite de
+# ritmo (429), falhas momentâneas do servidor
+_RETRY_STATUS = {429, 500, 502, 503, 504}
+_RETRY_DELAYS_SEC = (2.0, 6.0, 15.0)
+
+
+async def _post(client: httpx.AsyncClient, path: str, body: dict[str, Any]) -> httpx.Response:
+    for attempt, delay in enumerate((*_RETRY_DELAYS_SEC, None)):
+        try:
+            response = await client.post(path, json=body)
+        except (httpx.TimeoutException, httpx.TransportError):
+            if delay is None:
+                raise
+        else:
+            if response.status_code not in _RETRY_STATUS or delay is None:
+                return response
+            # quota esgotada (ex.: plano gratuito do Gemini, 20 pedidos/dia) não
+            # passa em segundos — voltar a tentar só atrasa o erro
+            if response.status_code == 429 and "quota" in response.text.lower():
+                return response
+            retry_after = response.headers.get("retry-after", "")
+            if retry_after.isdigit():
+                delay = min(float(retry_after), 30.0)
+        await asyncio.sleep(delay)
+    raise AssertionError("inalcançável")
 
 
 def _schema_instruction(schema: dict) -> str:
@@ -265,13 +316,18 @@ async def _anthropic_call(
     }
     if schema is not None:
         body["output_config"] = {"format": {"type": "json_schema", "schema": schema}}
-    response = await client.post("/v1/messages", json=body)
+    response = await _post(client, "/v1/messages", body)
     _raise_for_status(provider, model, response)
     data = response.json()
+    usage = data.get("usage") or {}
+    if data.get("stop_reason") == "max_tokens":
+        raise TruncatedResponse(
+            f"{provider.label or provider.id} / {model}: resposta cortada — atingiu o limite de "
+            f"{max_tokens} tokens. Aumenta \"Tokens extra\" no provedor."
+        )
     text_block = next((b for b in data.get("content", []) if b.get("type") == "text"), None)
     if not text_block:
         raise ValueError("Resposta do LLM sem texto.")
-    usage = data.get("usage") or {}
     return text_block["text"], usage.get("input_tokens", 0) or 0, usage.get("output_tokens", 0) or 0
 
 
@@ -282,12 +338,16 @@ async def _openai_call(
     mode = provider.json_mode if schema is not None else None
 
     def build(json_mode: str | None) -> dict[str, Any]:
-        sys_text = system + (_schema_instruction(schema) if schema is not None and json_mode != "json_schema" else "")
+        # o schema vai SEMPRE também no prompt: há provedores "compatíveis" que
+        # aceitam response_format=json_schema mas não o impõem de facto
+        sys_text = system + (_schema_instruction(schema) if schema is not None else "")
         body: dict[str, Any] = {
             "model": model,
             provider.token_param: max_tokens,
             "messages": [{"role": "system", "content": sys_text}, {"role": "user", "content": prompt}],
         }
+        if provider.reasoning_effort:
+            body["reasoning_effort"] = provider.reasoning_effort
         if json_mode == "json_schema":
             body["response_format"] = {
                 "type": "json_schema",
@@ -297,19 +357,28 @@ async def _openai_call(
             body["response_format"] = {"type": "json_object"}
         return body
 
-    response = await client.post("/chat/completions", json=build(mode))
+    response = await _post(client, "/chat/completions", build(mode))
     # provedor "compatível" que afinal não suporta json_schema: tenta uma vez
     # com json_object + schema no prompt, em vez de falhar a geração inteira
     if response.status_code == 400 and mode == "json_schema" and "response_format" in response.text:
-        response = await client.post("/chat/completions", json=build("json_object"))
+        response = await _post(client, "/chat/completions", build("json_object"))
     _raise_for_status(provider, model, response)
     data = response.json()
     choices = data.get("choices") or []
+    usage = data.get("usage") or {}
+    input_tokens = usage.get("prompt_tokens", 0) or 0
+    # total - prompt inclui os tokens de raciocínio, que também se pagam
+    output_tokens = max(usage.get("completion_tokens", 0) or 0, (usage.get("total_tokens", 0) or 0) - input_tokens)
+    if choices and choices[0].get("finish_reason") == "length":
+        raise TruncatedResponse(
+            f"{provider.label or provider.id} / {model}: resposta cortada — atingiu o limite de "
+            f"{max_tokens} tokens ({output_tokens} usados, a maior parte provavelmente a raciocinar). "
+            f"Baixa \"Raciocínio\" ou aumenta \"Tokens extra\" no provedor."
+        )
     content = (choices[0].get("message") or {}).get("content") if choices else None
     if not content:
         raise ValueError("Resposta do LLM sem texto.")
-    usage = data.get("usage") or {}
-    return content, usage.get("prompt_tokens", 0) or 0, usage.get("completion_tokens", 0) or 0
+    return content, input_tokens, output_tokens
 
 
 def _raise_for_status(provider: Provider, model: str, response: httpx.Response) -> None:
@@ -317,20 +386,102 @@ def _raise_for_status(provider: Provider, model: str, response: httpx.Response) 
         return
     # o corpo do erro é o que explica o problema (modelo inexistente, chave
     # inválida, parâmetro não suportado) — sem ele o painel só mostrava "400"
+    if response.status_code == 429 and "quota" in response.text.lower():
+        raise RuntimeError(
+            f"{provider.label or provider.id} / {model}: quota do provedor esgotada (HTTP 429). "
+            f"Se for um plano gratuito, ativa a faturação na conta do provedor. Detalhe: {response.text[:300]}"
+        )
     raise RuntimeError(
         f"{provider.label or provider.id} / {model}: HTTP {response.status_code} — {response.text[:500]}"
     )
+
+
+async def _call_with(
+    provider: Provider,
+    model: str,
+    system: str,
+    prompt: str,
+    max_tokens: int,
+    schema: dict | None,
+    tracker: UsageTracker | None,
+) -> str:
+    call = _anthropic_call if provider.kind == "anthropic" else _openai_call
+    text, input_tokens, output_tokens = await call(
+        provider, model, system, prompt, max_tokens + provider.extra_tokens, schema
+    )
+    if tracker is not None:
+        tracker.add(input_tokens, output_tokens, _cost(provider, model, input_tokens, output_tokens), f"{provider.id}/{model}")
+    return text
 
 
 async def _call(
     step: str, system: str, prompt: str, max_tokens: int, schema: dict | None, tracker: UsageTracker | None
 ) -> str:
     provider, model = resolve_step(step)
-    call = _anthropic_call if provider.kind == "anthropic" else _openai_call
-    text, input_tokens, output_tokens = await call(provider, model, system, prompt, max_tokens, schema)
-    if tracker is not None:
-        tracker.add(input_tokens, output_tokens, _cost(provider, model, input_tokens, output_tokens), f"{provider.id}/{model}")
-    return text
+    return await _call_with(provider, model, system, prompt, max_tokens, schema, tracker)
+
+
+# --- teste de um provedor/modelo a partir do painel (POST /admin/ai/test) ------
+
+_TEST_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "vencedor": {"type": "string"},
+        "golos_vencedor": {"type": "integer"},
+        "golos_derrotado": {"type": "integer"},
+    },
+    "required": ["vencedor", "golos_vencedor", "golos_derrotado"],
+    "additionalProperties": False,
+}
+
+
+async def test_model(raw_provider: dict[str, Any], model: str, question: str) -> dict[str, Any]:
+    """Duas chamadas reais com a configuração do painel (ainda que não gravada):
+    a pergunta do operador em texto livre, e um pequeno pedido em JSON — que é o
+    que toda a cadeia editorial usa, e onde os provedores mais falham."""
+    provider = _parse_provider(raw_provider)
+    if provider is None:
+        return {"ok": False, "error": "configuração do provedor inválida"}
+    if provider.use_env_credentials:
+        provider = Provider(**{**_env_provider().__dict__, "models": provider.models,
+                               "reasoning_effort": provider.reasoning_effort, "extra_tokens": provider.extra_tokens})
+    # a chave pode ter acabado de ser guardada — não usar a cache de 30 s
+    _key_cache.pop(provider.id, None)
+
+    async def run(schema: dict | None, system: str, prompt: str, max_tokens: int) -> dict[str, Any]:
+        tracker = UsageTracker()
+        started = time.monotonic()
+        try:
+            text = await _call_with(provider, model, system, prompt, max_tokens, schema, tracker)
+            result: dict[str, Any] = {"ok": True, "text": text.strip()}
+            if schema is not None:
+                parsed = _parse_json_strict(text)
+                missing = [k for k in schema["required"] if k not in parsed]
+                result.update(parsed=parsed, ok=not missing)
+                if missing:
+                    result["error"] = f"JSON sem os campos: {', '.join(missing)}"
+        except Exception as err:
+            result = {"ok": False, "error": str(err)[:800]}
+        result.update(
+            seconds=round(time.monotonic() - started, 1),
+            input_tokens=tracker.input_tokens,
+            output_tokens=tracker.output_tokens,
+            cost_usd=round(tracker.cost_usd, 6),
+        )
+        return result
+
+    answer = await run(None, "Responde de forma breve e direta.", question, 512)
+    structured = await run(
+        _TEST_SCHEMA,
+        "Extrais dados de uma frase para JSON.",
+        "O Sporting venceu o Benfica por 3-1 no Estádio de Alvalade.",
+        512,
+    )
+    if structured.get("ok"):
+        p = structured.get("parsed") or {}
+        if (p.get("golos_vencedor"), p.get("golos_derrotado")) != (3, 1):
+            structured.update(ok=False, error=f"JSON válido mas com dados errados: {p}")
+    return {"ok": bool(answer.get("ok") and structured.get("ok")), "answer": answer, "structured": structured}
 
 
 async def complete(

@@ -162,6 +162,33 @@ if (isProduction) {
 // não apanha promises rejeitadas; sem isto o Node termina e o container reinicia).
 process.on('unhandledRejection', (err) => console.error('[web] promise rejeitada sem tratamento:', err))
 
+// --- /api → backend FastAPI -----------------------------------------------------
+// A API só está publicada dentro da VPS (127.0.0.1:8000 / rede do docker
+// compose); o painel chega-lhe por aqui, no mesmo domínio. Só /api/admin/*, e
+// a própria API exige a sessão de um operador (apps/api/app/auth.py) — este
+// proxy não decide nada sobre acesso, só reencaminha.
+const apiInternalUrl = (process.env.API_INTERNAL_URL ?? 'http://127.0.0.1:8000').replace(/\/+$/, '')
+
+app.post('/api/admin/*', express.json({ limit: '64kb' }), async (req, res) => {
+  try {
+    const upstream = await fetch(`${apiInternalUrl}${req.originalUrl.slice('/api'.length)}`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(req.get('authorization') ? { authorization: req.get('authorization') } : {}),
+      },
+      body: JSON.stringify(req.body ?? {}),
+      // o teste de um modelo faz 2 chamadas reais, com novas tentativas se o
+      // provedor estiver sobrecarregado
+      signal: AbortSignal.timeout(180_000),
+    })
+    res.status(upstream.status).set('Cache-Control', 'no-store').type('application/json').send(await upstream.text())
+  } catch (err) {
+    console.error('[web] proxy /api falhou:', err)
+    res.status(502).json({ detail: 'backend indisponível' })
+  }
+})
+
 app.get('/healthz', (_req, res) => {
   res.type('text/plain').send('ok')
 })

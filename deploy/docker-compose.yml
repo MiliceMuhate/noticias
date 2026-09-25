@@ -24,5 +24,8 @@ services:
     environment:
       # domínio canónico do site público (canonical, og:url, JSON-LD, sitemap.xml)
       SITE_URL: ${SITE_URL:-https://footballtrend.online}
+      # o painel chega à API por /api (proxy em apps/web/server.js), pela rede
+      # interna do compose — a API continua sem porta pública
+      API_INTERNAL_URL: http://api:8000
     ports:
       - "127.0.0.1:8080:3000"
