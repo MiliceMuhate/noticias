@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import type { ContentTranslation } from '@repo/shared'
 import { supabase } from '../../lib/supabase'
 import { Field, Loading, NumberInput, SaveBar, Section, Toggle } from './fields'
+import TranslationReview from './TranslationReview'
 import { useSetting } from './useSetting'
 
 /** settings.translation — o backend (services/translate.py) traduz cada artigo
@@ -47,9 +48,10 @@ export default function TranslationSection() {
       ready: mine.filter((r) => r.status === 'ready').length,
       blocked: mine.filter((r) => r.status === 'blocked').length,
       failed: mine.filter((r) => r.status === 'failed').length,
+      withdrawn: mine.filter((r) => r.status === 'withdrawn').length,
     }
   }
-  const problems = (rows ?? []).filter((r) => r.status !== 'ready').slice(0, 10)
+  const problems = (rows ?? []).filter((r) => r.status === 'blocked' || r.status === 'failed').slice(0, 10)
 
   return (
     <div className="space-y-8">
@@ -80,13 +82,17 @@ export default function TranslationSection() {
             </Field>
           </div>
           <p className="text-xs text-slate-500">
-            Cada tradução passa pelo portão de originalidade contra o texto da fonte: a fonte costuma estar em inglês, e
-            traduzir de volta pode reaproximar o texto do original. Se ficar próxima demais, não é publicada
-            (“bloqueada”). O modelo usado define-se em Provedores de IA → “Traduções”.
+            Cada tradução passa por duas verificações antes de ir para o site. A primeira é a distância à fonte: na
+            mesma língua da fonte (normalmente o inglês) o critério é o mais rigoroso, e as frases próximas do original
+            são reescritas até duas vezes. A segunda é uma auditoria de fidelidade ao português, que corrige os
+            problemas uma vez. Se não passar, fica “bloqueada”. Os modelos definem-se em Provedores de IA
+            (“Traduções” e “Auditoria das traduções”).
           </p>
         </div>
         <SaveBar dirty={dirty} save={save} value={draft} />
       </Section>
+
+      <TranslationReview />
 
       <Section title="Estado">
         <div className="grid gap-3 sm:grid-cols-3">
@@ -98,6 +104,7 @@ export default function TranslationSection() {
                 <p className="text-green-700">{c.ready} publicadas</p>
                 {c.blocked > 0 && <p className="text-amber-700">{c.blocked} bloqueadas (próximas da fonte)</p>}
                 {c.failed > 0 && <p className="text-red-700">{c.failed} com erro</p>}
+                {c.withdrawn > 0 && <p className="text-slate-500">{c.withdrawn} retiradas por um operador</p>}
               </div>
             )
           })}

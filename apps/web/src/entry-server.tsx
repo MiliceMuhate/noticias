@@ -7,6 +7,7 @@ import {
   articleQuery,
   articlesQuery,
   categoriesQuery,
+  editorQuery,
   fetchSitemapEntries,
   findArticleInAnyLang,
 } from './lib/publicData'
@@ -24,6 +25,7 @@ import {
   SITE_NAME,
 } from './lib/seo'
 import { createQueryClient, Root } from './Root'
+import { INFO_PAGE_PATHS, INFO_PAGES, type InfoPageKey } from './pages/public/infoPagesContent'
 
 /**
  * Render do lado do servidor, chamado por `server.js` a cada pedido. Só o site
@@ -135,6 +137,17 @@ export async function render(url: string, siteUrl: string): Promise<RenderResult
         status = 404
         head = { lang, title: `${t('articleNotFound').replace(/\.$/, '')} | ${SITE_NAME}`, noindex: true }
       }
+    } else if (infoPageFor(path)) {
+      const page = infoPageFor(path)!
+      await queryClient.fetchQuery(editorQuery())
+      const content = INFO_PAGES[page][lang]
+      head = {
+        lang,
+        title: `${content.title} | ${SITE_NAME}`,
+        description: content.description,
+        canonicalPath: localizedPath(lang, INFO_PAGE_PATHS[page]),
+        alternates: everyLangAlternates(INFO_PAGE_PATHS[page], LANGS),
+      }
     } else if (path === '/politica-de-privacidade') {
       head = {
         lang,
@@ -193,6 +206,11 @@ async function redirectForSlug(slug: string, lang: Lang): Promise<string | null>
   return articlePath(target.lang, target.slug)
 }
 
+function infoPageFor(path: string): InfoPageKey | null {
+  const clean = path.replace(/\/+$/, '') || '/'
+  return (Object.keys(INFO_PAGE_PATHS) as InfoPageKey[]).find((k) => INFO_PAGE_PATHS[k] === clean) ?? null
+}
+
 function safeDecode(value: string): string | null {
   try {
     return decodeURIComponent(value)
@@ -215,10 +233,14 @@ function xhtmlLinks(siteUrl: string, alternates: { lang: Lang; path: string }[])
 export async function renderSitemap(siteUrl: string): Promise<string> {
   const entries = await fetchSitemapEntries()
   const homeAlternates = everyLangAlternates('/', LANGS)
+  const staticPages = [...Object.values(INFO_PAGE_PATHS), '/politica-de-privacidade'].map((p) => everyLangAlternates(p, LANGS))
   const urls = [
     ...homeAlternates.map(
       (home) =>
         `  <url><loc>${escapeXml(`${siteUrl}${home.path}`)}</loc>${xhtmlLinks(siteUrl, homeAlternates)}<changefreq>hourly</changefreq></url>`,
+    ),
+    ...staticPages.flatMap((alternates) =>
+      alternates.map((page) => `  <url><loc>${escapeXml(`${siteUrl}${page.path}`)}</loc>${xhtmlLinks(siteUrl, alternates)}</url>`),
     ),
     ...entries.map((entry) => {
       const lang = entry.lang as Lang

@@ -142,6 +142,23 @@ Especificação completa em `docs/publicador/` (`TASKS_CONTENT.md`, `PROMPTS.md`
       determinístico passa a dizer "Sem cópia literal" (não "Original").
 - [x] Citações: a ficha de factos guarda também a tradução pt (`traducao`); o
       artigo usa-a e o portão aceita-a como citação autorizada.
+- [x] Páginas institucionais em 4 línguas — `/sobre`, `/contacto`, `/politica-editorial`
+      (`pages/public/infoPagesContent.tsx`): publicado pela Pixa Editora, editor
+      responsável (lido de `published_articles.editor`), contacto, e uma política
+      editorial que descreve o processo real (IA, verificações, piloto automático,
+      traduções, correções). JSON-LD: `publisher` = Pixa Editora com
+      `publishingPrinciples`. O rodapé deixou de dizer que tudo é revisto por um
+      humano (com o piloto ligado não é).
+- [x] Atribuição da fonte no fim do artigo (antes estava no início); crédito da
+      foto continua junto à imagem.
+- [x] **Qualidade das traduções** (`services/translate.py`,
+      migração `20260925000002_translation_quality.sql`): na língua da fonte
+      (inglês) a versão é escrita de raiz (`transcreate`), não traduzida — o pt é
+      o plano, a ficha de factos a matéria-prima, lead e título fora do molde de
+      agência; distância à fonte com critério rigoroso (tudo em `pass`, incluindo
+      o título) e reescrita dirigida das frases próximas; auditoria de fidelidade
+      (`translate_audit`) com correção; revisão humana por amostragem no painel
+      (Configuração → Traduções: "Está bem" / "Retirar do site").
 - [ ] Por fazer: categorias (`topics.category`) não são traduzidas; o painel
       /admin fica só em português; não há botão "testar ligação" por provedor.
       As rotas `/admin/*` da API não verificam quem as chama — hoje só são

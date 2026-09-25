@@ -70,7 +70,8 @@ insert into public.settings (key, value) values
      "package": "claude-haiku-4-5",
      "self_audit": "claude-haiku-4-5",
      "rewrite_flagged": "claude-haiku-4-5",
-     "translate": "claude-haiku-4-5"
+     "translate": "claude-haiku-4-5",
+     "translate_audit": "claude-haiku-4-5"
    }'::jsonb),
 
   -- vocabulário fechado de tags (docs/publicador/EDITORIAL.md §7) — o gerador

@@ -87,8 +87,13 @@ export default function ArticlePage() {
               </p>
             )}
 
+            <div className="prose prose-slate mt-7 max-w-none font-body prose-headings:font-display prose-headings:font-medium prose-headings:text-delvis-ink prose-p:text-delvis-body prose-a:font-semibold prose-a:text-delvis-teal prose-strong:text-delvis-ink">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{article.body}</ReactMarkdown>
+            </div>
+
+            {/* atribuição no fim do artigo (guardrail #2 — tem de aparecer sempre) */}
             {article.source_url && (
-              <p className="mt-6 bg-delvis-surface px-3.5 py-2.5 text-xs font-medium text-delvis-mute">
+              <p className="mt-8 bg-delvis-surface px-3.5 py-2.5 text-xs font-medium text-delvis-mute">
                 {t('rewrittenFrom')}{' '}
                 <span className="font-bold text-delvis-ink">{article.source_name ?? t('externalSource')}</span>.{' '}
                 <a
@@ -114,10 +119,6 @@ export default function ArticlePage() {
                 )}
               </p>
             )}
-
-            <div className="prose prose-slate mt-7 max-w-none font-body prose-headings:font-display prose-headings:font-medium prose-headings:text-delvis-ink prose-p:text-delvis-body prose-a:font-semibold prose-a:text-delvis-teal prose-strong:text-delvis-ink">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{article.body}</ReactMarkdown>
-            </div>
 
             {tags.length > 0 && (
               <div className="mt-8 flex flex-wrap gap-2 border-t border-delvis-line pt-6">

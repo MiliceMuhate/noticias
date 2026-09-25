@@ -72,6 +72,7 @@ export const PIPELINE_STEPS: { key: string; label: string }[] = [
   { key: 'rewrite_flagged', label: '5. Reescrita dirigida' },
   { key: 'package', label: '6. Título, SEO e tags' },
   { key: 'translate', label: 'Traduções (en/es/fr)' },
+  { key: 'translate_audit', label: 'Auditoria das traduções' },
 ]
 
 /** Pontos de partida para um provedor novo. Os modelos ficam em branco de

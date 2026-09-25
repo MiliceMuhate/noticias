@@ -77,12 +77,18 @@ scheduler interno (APScheduler, arrancado no `lifespan` da app — ver `app/main
   `MAX_GENERATE_ATTEMPTS` (contados em `jobs`).
 - `POST /admin/detect-now` e `POST /admin/generate-now` disparam os dois ciclos fora do
   intervalo normal (gatilho manual, ex.: botão no painel).
-- **`translate_published`** (2 min por omissão, `settings.translation`): traduz os
-  artigos pt **publicados** para en/es/fr (`app/services/translate.py`, passo LLM
-  `translate`) e grava `content_translations`. Cada tradução passa pelo portão de
-  originalidade contra o texto da fonte — a fonte costuma estar em inglês, e traduzir
-  a reescrita pt de volta pode reaproximá-la do original — e só fica `ready` se não
-  bloquear. Se o pt for editado, `source_hash` deixa de bater e retraduz.
+- **`translate_published`** (2 min por omissão, `settings.translation`): gera as
+  versões en/es/fr dos artigos pt **publicados** (`app/services/translate.py`) e grava
+  `content_translations`. Na língua da fonte (deteção por palavras funcionais —
+  quase sempre o inglês) a versão é **escrita de raiz** (`transcreate`), não
+  traduzida: traduzir a reescrita pt de volta para a língua da fonte tende a recair
+  na formulação original; nas outras línguas é uma tradução (`translate`). Depois:
+  portão de originalidade contra a fonte (na mesma língua, tudo em `pass`, título
+  incluído) com reescrita dirigida das frases próximas (`translate_distance`, até 2
+  vezes) → auditoria de fidelidade ao pt (`translate_audit`, passo LLM próprio) com
+  uma correção (`translate_fix`) se disser "rever" → `ready` ou `blocked`. Um
+  operador revê uma amostra no painel e pode retirar uma tradução (`withdrawn`). Se o
+  pt for editado, `source_hash` deixa de bater e refaz.
 - **LLM configurável** (`app/llm.py`): cada passo pede o modelo pelo nome do passo;
   `resolve_step` lê `settings.model_by_step` + `settings.ai_providers` (cache 30 s) e
   chama `/v1/messages` (tipo `anthropic`) ou `/chat/completions` (tipo

@@ -12,6 +12,8 @@ import NewsList from './pages/public/NewsList'
 import ArticlePage from './pages/public/ArticlePage'
 import PrivacyPolicy from './pages/public/PrivacyPolicy'
 import NotFound from './pages/public/NotFound'
+import InfoPage from './pages/public/InfoPage'
+import { INFO_PAGE_PATHS, type InfoPageKey } from './pages/public/infoPagesContent'
 import { PREFIXED_LANGS } from './lib/i18n'
 
 // '' = português (raiz); os outros com prefixo — ver lib/i18n.ts
@@ -24,6 +26,9 @@ export default function App() {
         <Route key={`${prefix}/`} path={`${prefix}/`} element={<NewsList />} />,
         <Route key={`${prefix}/artigo`} path={`${prefix}/artigo/:slug`} element={<ArticlePage />} />,
         <Route key={`${prefix}/privacidade`} path={`${prefix}/politica-de-privacidade`} element={<PrivacyPolicy />} />,
+        ...(Object.keys(INFO_PAGE_PATHS) as InfoPageKey[]).map((page) => (
+          <Route key={`${prefix}/${page}`} path={`${prefix}${INFO_PAGE_PATHS[page]}`} element={<InfoPage page={page} />} />
+        )),
       ])}
       <Route path="/admin/*" element={<Admin />} />
       <Route path="*" element={<NotFound />} />

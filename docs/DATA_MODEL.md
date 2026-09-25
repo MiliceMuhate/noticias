@@ -175,12 +175,14 @@ Uma tradução (en/es/fr) de um artigo pt publicado. Escrita só pelo backend
 | id | uuid PK | |
 | content_item_id | uuid FK → content_items | `on delete cascade`; `unique (content_item_id, lang)` |
 | lang | text | `en` \| `es` \| `fr` |
-| status | text | `ready` (visível) \| `blocked` (próxima demais da fonte) \| `failed` (erro técnico) |
+| status | text | `ready` (visível) \| `blocked` (próxima demais da fonte, ou auditoria "bloquear") \| `failed` (erro técnico) \| `withdrawn` (retirada por um operador — não volta a ser gerada enquanto o pt não mudar) |
 | title, body, dek, seo_description | text | |
 | tags | jsonb | lista de strings |
 | slug | text | único por língua (`content_translations_lang_slug_uniq`) |
 | source_hash | text | md5 de título+corpo do pt traduzido — se o pt mudar, retraduz |
-| originality | jsonb | relatório do portão contra o texto da fonte |
+| originality | jsonb | relatório do portão contra o texto da fonte, com `same_language_as_source` |
+| audit | jsonb | auditoria de fidelidade `{problemas, veredicto, resumo}` |
+| reviewed_by / reviewed_at | uuid / timestamptz | revisão humana por amostragem (`review_translation(p_id, 'ok'\|'withdraw'\|'restore')`, `security definer`, só operadores — única escrita do painel nesta tabela) |
 | error | text | |
 | attempts | int | até `settings.translation.max_attempts` |
 | created_at, updated_at | timestamptz | |

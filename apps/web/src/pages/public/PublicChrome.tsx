@@ -20,6 +20,7 @@ import {
   useT,
 } from '../../lib/i18n'
 import { categoriesQuery, sanitizeSearchTerm } from '../../lib/publicData'
+import { PUBLISHER_NAME } from './infoPagesContent'
 
 /**
  * Moldura visual partilhada do site público — Delvis Design System,
@@ -310,12 +311,19 @@ export function PublicFooter() {
     <footer className="border-t border-delvis-line bg-delvis-surface py-6 font-body">
       <div className="mx-auto flex max-w-5xl flex-col gap-3 px-4 text-xs text-delvis-mute sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <p>
-          <span className="font-bold text-delvis-ink">footballtrend</span> — {t('footerText')} © {new Date().getFullYear()}
+          <span className="font-bold text-delvis-ink">footballtrend</span> — {t('footerText')} © {new Date().getFullYear()}{' '}
+          {PUBLISHER_NAME}
         </p>
         <div className="flex flex-wrap gap-4 font-semibold">
-          <span>{t('about')}</span>
-          <span>{t('contact')}</span>
-          <span>{t('editorialPolicy')}</span>
+          <Link to={localizedPath(lang, '/sobre')} className="hover:text-delvis-teal hover:underline">
+            {t('about')}
+          </Link>
+          <Link to={localizedPath(lang, '/contacto')} className="hover:text-delvis-teal hover:underline">
+            {t('contact')}
+          </Link>
+          <Link to={localizedPath(lang, '/politica-editorial')} className="hover:text-delvis-teal hover:underline">
+            {t('editorialPolicy')}
+          </Link>
           <Link to={localizedPath(lang, '/politica-de-privacidade')} className="hover:text-delvis-teal hover:underline">
             {t('privacyPolicy')}
           </Link>

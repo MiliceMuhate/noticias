@@ -84,6 +84,26 @@ export const categoriesQuery = (lang: Lang) =>
     staleTime: 5 * 60 * 1000,
   })
 
+/** Editor responsável (settings.authors.editor), tal como aparece nos artigos
+ * publicados — as páginas institucionais mostram-no sem precisar de sessão. */
+async function fetchEditor(): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('published_articles')
+    .select('editor')
+    .not('editor', 'is', null)
+    .order('published_at', { ascending: false })
+    .limit(1)
+  if (error) throw new Error(error.message)
+  return data[0]?.editor ?? null
+}
+
+export const editorQuery = () =>
+  queryOptions({
+    queryKey: ['published_articles', 'editor'],
+    queryFn: fetchEditor,
+    staleTime: 60 * 60 * 1000,
+  })
+
 /**
  * Todos os artigos publicados, para o sitemap. O PostgREST do Supabase corta
  * cada resposta a 1000 linhas por omissão — por isso pagina até esgotar.

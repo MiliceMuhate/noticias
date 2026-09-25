@@ -19,7 +19,7 @@ export type TopicStatus =
 export type ContentStatus = 'pending_review' | 'published' | 'rejected'
 export type JobStatus = 'queued' | 'running' | 'done' | 'failed'
 export type TranslationLang = 'en' | 'es' | 'fr'
-export type TranslationStatus = 'ready' | 'blocked' | 'failed'
+export type TranslationStatus = 'ready' | 'blocked' | 'failed' | 'withdrawn'
 export type Momentum = 'rising' | 'peaked' | 'falling'
 export type Desk = 'resultados' | 'transferencias' | 'analise' | 'institucional'
 
@@ -295,6 +295,10 @@ export interface Database {
           slug: string | null
           source_hash: string
           originality: Json | null
+          /** auditoria de fidelidade (IA): {problemas, veredicto, resumo} */
+          audit: Json | null
+          reviewed_by: string | null
+          reviewed_at: string | null
           error: string | null
           attempts: number
           created_at: string
@@ -365,6 +369,10 @@ export interface Database {
       }
       set_ai_provider_key: {
         Args: { p_provider_id: string; p_key: string | null }
+        Returns: void
+      }
+      review_translation: {
+        Args: { p_id: string; p_action: 'ok' | 'withdraw' | 'restore' }
         Returns: void
       }
       ai_provider_key_status: {

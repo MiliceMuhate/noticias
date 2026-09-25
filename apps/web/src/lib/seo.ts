@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import type { PublishedArticle } from '@repo/shared'
+import { PUBLISHER_NAME } from '../pages/public/infoPagesContent'
 import { DEFAULT_LANG, HTML_LANG, type Lang, localizedPath, OG_LOCALE, parseAlternates, translate } from './i18n'
 
 /**
@@ -120,11 +121,13 @@ export function newsArticleJsonLd(article: PublishedArticle, siteUrl: string): R
   const lang = article.lang as Lang
   const url = `${siteUrl}${articlePath(lang, article.slug)}`
   const tags = Array.isArray(article.tags) ? article.tags.filter((t): t is string => typeof t === 'string') : []
+  // quem publica é a Pixa Editora; footballtrend é o nome do site
   const publisher = {
     '@type': 'Organization',
-    name: SITE_NAME,
+    name: PUBLISHER_NAME,
     url: siteUrl,
     logo: { '@type': 'ImageObject', url: `${siteUrl}/logo.png`, width: 512, height: 512 },
+    publishingPrinciples: `${siteUrl}${localizedPath(lang, '/politica-editorial')}`,
   }
   return {
     '@context': 'https://schema.org',
