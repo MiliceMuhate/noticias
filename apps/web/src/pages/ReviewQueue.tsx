@@ -51,16 +51,35 @@ interface PublishingLimits {
 }
 
 type ItemWithFacts = ContentItem & { topics: { term: string; sport_facts: SportFact[] } | null }
+type PublishedItem = Pick<ContentItem, 'id' | 'title' | 'status' | 'published_at' | 'published_url' | 'published_via' | 'view_count'>
 
 async function fetchQueue(): Promise<ItemWithFacts[]> {
   const { data, error } = await supabase
     .from('content_items')
     .select('*, topics(term, sport_facts(*))')
-    .in('status', ['pending_review', 'published', 'rejected'])
+    .in('status', ['pending_review', 'rejected'])
     .order('created_at', { ascending: false })
     .limit(50)
   if (error) throw new Error(error.message)
   return data as unknown as ItemWithFacts[]
+}
+
+/** O histórico de publicados não deve ficar limitado pelos 50 itens da fila. */
+async function fetchPublished(): Promise<PublishedItem[]> {
+  const pageSize = 1000
+  const published: PublishedItem[] = []
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from('content_items')
+      .select('id, title, status, published_at, published_url, published_via, view_count')
+      .eq('status', 'published')
+      .order('published_at', { ascending: false })
+      .order('id')
+      .range(from, from + pageSize - 1)
+    if (error) throw new Error(error.message)
+    published.push(...data)
+    if (data.length < pageSize) return published
+  }
 }
 
 async function fetchPublishingLimits(): Promise<PublishingLimits | null> {
@@ -85,7 +104,7 @@ async function audit(action: string, entityId: string, detail: Record<string, un
  * max_per_source_per_day e require_manual_edit_every_n ficam para depois (ver
  * plano); min_minutes_between_publications existiu e foi removido a pedido do
  * operador. */
-function limitBlockReason(items: ItemWithFacts[], limits: PublishingLimits | null): string | null {
+function limitBlockReason(items: Pick<ContentItem, 'status' | 'published_at'>[], limits: PublishingLimits | null): string | null {
   if (!limits) return null
   const published = items.filter((i) => i.status === 'published' && i.published_at)
 
@@ -102,6 +121,11 @@ function limitBlockReason(items: ItemWithFacts[], limits: PublishingLimits | nul
 export default function ReviewQueue() {
   const queryClient = useQueryClient()
   const { data: items, isLoading, error } = useQuery({ queryKey: ['content_items'], queryFn: fetchQueue })
+  const { data: publishedItems, error: publishedError } = useQuery({
+    queryKey: ['content_items', 'published'],
+    queryFn: fetchPublished,
+    refetchInterval: 30_000,
+  })
   const { data: limits } = useQuery({ queryKey: ['settings', 'publishing_limits'], queryFn: fetchPublishingLimits })
   const [editing, setEditing] = useState<ItemWithFacts | null>(null)
 
@@ -146,7 +170,7 @@ export default function ReviewQueue() {
   })
 
   const unpublish = useMutation({
-    mutationFn: async (item: ItemWithFacts) => {
+    mutationFn: async (item: PublishedItem) => {
       const { error: e } = await supabase
         .from('content_items')
         .update({ status: 'pending_review', published_at: null, published_url: null, published_via: null })
@@ -159,10 +183,11 @@ export default function ReviewQueue() {
 
   if (isLoading) return <p className="text-slate-500">A carregar fila…</p>
   if (error) return <p className="text-red-600">Erro: {(error as Error).message}</p>
+  if (publishedError) return <p className="text-red-600">Erro nas visualizações: {(publishedError as Error).message}</p>
 
   const pending = (items ?? []).filter((i) => i.status === 'pending_review')
-  const rest = (items ?? []).filter((i) => i.status !== 'pending_review')
-  const limitReason = limitBlockReason(items ?? [], limits ?? null)
+  const rest: PublishedItem[] = [...(publishedItems ?? []), ...(items ?? []).filter((i) => i.status === 'rejected')]
+  const limitReason = limitBlockReason([...(items ?? []), ...(publishedItems ?? [])], limits ?? null)
 
   return (
     <div className="space-y-6">
