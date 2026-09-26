@@ -40,7 +40,7 @@ async def sync_trends() -> None:
 
 
 async def discover_articles() -> None:
-    sources_res = supabase.table("sources").select("*").eq("enabled", True).execute()
+    sources_res = supabase.table("sources").select("*").eq("enabled", True).eq("kind", "rss").execute()
     for source in sources_res.data or []:
         try:
             provider = news_source_for(source["kind"])
