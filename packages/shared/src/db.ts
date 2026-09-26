@@ -96,6 +96,7 @@ export interface Database {
           raw_data: Json | null
           detected_at: string
           updated_at: string
+          archived_at: string | null
         }
         Insert: {
           id?: string
@@ -109,6 +110,7 @@ export interface Database {
           raw_data?: Json | null
           detected_at?: string
           updated_at?: string
+          archived_at?: string | null
         }
         Update: {
           id?: string
@@ -122,6 +124,7 @@ export interface Database {
           raw_data?: Json | null
           detected_at?: string
           updated_at?: string
+          archived_at?: string | null
         }
         Relationships: []
       }
@@ -366,6 +369,14 @@ export interface Database {
       increment_article_view: {
         Args: { p_id: string }
         Returns: void
+      }
+      archive_finished_topics: {
+        Args: Record<string, never>
+        Returns: number
+      }
+      restore_archived_topics: {
+        Args: Record<string, never>
+        Returns: number
       }
       set_ai_provider_key: {
         Args: { p_provider_id: string; p_key: string | null }
