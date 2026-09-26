@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Job, Topic } from '@repo/shared'
 import { supabase } from '../lib/supabase'
@@ -7,12 +8,13 @@ import { supabase } from '../lib/supabase'
 
 type TopicWithJobs = Topic & { jobs: Pick<Job, 'status' | 'error' | 'created_at'>[] }
 
-async function fetchTopics(): Promise<TopicWithJobs[]> {
-  const { data, error } = await supabase
+async function fetchTopics(archived: boolean): Promise<TopicWithJobs[]> {
+  const query = supabase
     .from('topics')
     .select('*, jobs(status, error, created_at)')
     .order('detected_at', { ascending: false })
     .limit(100)
+  const { data, error } = await (archived ? query.not('archived_at', 'is', null) : query.is('archived_at', null))
   if (error) throw new Error(error.message)
   return data as unknown as TopicWithJobs[]
 }
@@ -38,7 +40,36 @@ const STATUS_LABELS: Record<string, string> = {
 
 export default function Trends() {
   const queryClient = useQueryClient()
-  const { data: topics, isLoading, error } = useQuery({ queryKey: ['topics'], queryFn: fetchTopics })
+  const [showArchived, setShowArchived] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
+  const { data: topics, isLoading, error } = useQuery({
+    queryKey: ['topics', showArchived ? 'archived' : 'active'],
+    queryFn: () => fetchTopics(showArchived),
+  })
+
+  const archive = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.rpc('archive_finished_topics')
+      if (error) throw new Error(error.message)
+      return data
+    },
+    onSuccess: (count) => {
+      setNotice(`${count} tendências arquivadas. Os artigos e erros continuam guardados.`)
+      void queryClient.invalidateQueries({ queryKey: ['topics'] })
+    },
+  })
+
+  const restore = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.rpc('restore_archived_topics')
+      if (error) throw new Error(error.message)
+      return data
+    },
+    onSuccess: (count) => {
+      setNotice(`${count} tendências restauradas.`)
+      void queryClient.invalidateQueries({ queryKey: ['topics'] })
+    },
+  })
 
   // aprovação manual (ou repetição) de um topic para geração. A geração em si
   // não é instantânea: o backend só a processa no próximo ciclo do scheduler
@@ -58,7 +89,45 @@ export default function Trends() {
   if (error) return <p className="text-red-600">Erro: {(error as Error).message}</p>
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() => { setShowArchived(!showArchived); setNotice(null) }}
+          className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700"
+        >
+          {showArchived ? 'Ver tendências atuais' : 'Ver arquivadas'}
+        </button>
+        {showArchived ? (
+          <button
+            type="button"
+            disabled={restore.isPending}
+            onClick={() => { if (window.confirm('Restaurar todas as tendências arquivadas?')) restore.mutate() }}
+            className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 disabled:opacity-50"
+          >
+            Restaurar todas
+          </button>
+        ) : (
+          <button
+            type="button"
+            disabled={archive.isPending}
+            onClick={() => {
+              if (window.confirm('Arquivar tendências concluídas, rejeitadas e falhadas? Notícias na fila ou em geração ficam visíveis. Os dados não serão apagados.')) archive.mutate()
+            }}
+            className="rounded-md border border-amber-300 px-3 py-2 text-sm font-medium text-amber-900 disabled:opacity-50"
+          >
+            {archive.isPending ? 'A arquivar…' : 'Arquivar histórico'}
+          </button>
+        )}
+      </div>
+      {notice && <p className="text-sm text-slate-700">{notice}</p>}
+      {(archive.error || restore.error) && (
+        <p className="text-sm text-red-700">Erro: {(archive.error ?? restore.error)?.message}</p>
+      )}
+      <p className="text-xs text-slate-500">
+        O arquivo limpa a lista e preserva os registos. Uma notícia já detetada hoje só volta a entrar amanhã se continuar no RSS.
+      </p>
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
       <table className="w-full text-sm">
         <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase text-slate-500">
           <tr>
@@ -104,7 +173,7 @@ export default function Trends() {
                 </td>
                 <td className="px-4 py-2 text-slate-500">{new Date(t.detected_at).toLocaleString('pt')}</td>
                 <td className="px-4 py-2 text-right">
-                  {(t.status === 'scored' || t.status === 'failed') && (
+                  {!showArchived && (t.status === 'scored' || t.status === 'failed') && (
                     <button
                       onClick={() => approveForGen.mutate(t)}
                       disabled={requesting}
@@ -130,12 +199,13 @@ export default function Trends() {
           {(topics ?? []).length === 0 && (
             <tr>
               <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
-                Sem tendências ainda — a deteção de artigos vai preencher isto.
+                {showArchived ? 'Nenhuma tendência arquivada.' : 'Sem tendências atuais — as próximas deteções aparecerão aqui.'}
               </td>
             </tr>
           )}
         </tbody>
       </table>
+      </div>
     </div>
   )
 }
