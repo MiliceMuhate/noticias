@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from ..auth import require_operator
 from ..llm import test_model
 from ..scheduler import discover_articles, generate_pending, score_detected_topics
+from ..services.manual_news_search import search_and_queue
 
 router = APIRouter(prefix="/admin", dependencies=[Depends(require_operator)])
 
@@ -29,6 +30,15 @@ async def detect_now() -> dict[str, str]:
 async def generate_now() -> dict[str, str]:
     await generate_pending()
     return {"status": "ok"}
+
+
+class NewsSearchRequest(BaseModel):
+    query: str = Field(default="football soccer", min_length=3, max_length=100)
+
+
+@router.post("/news/search")
+async def search_news(req: NewsSearchRequest, operator_id: str = Depends(require_operator)) -> dict[str, Any]:
+    return await search_and_queue(req.query.strip(), operator_id)
 
 
 class AiTestRequest(BaseModel):

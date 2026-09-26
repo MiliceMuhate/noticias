@@ -15,7 +15,7 @@ Um sistema semi-autónomo que deteta notícias reais de **futebol** em feeds RSS
 configurados, **reescreve-as** (nunca inventa, nunca copia literalmente, atribui sempre
 a fonte) e publica-as no **próprio site** — com **um portão de aprovação humana** antes
 de qualquer publicação. Âmbito deliberadamente restrito: só futebol, só artigo, só
-fontes configuradas (nada de pesquisa aberta), só o site (nada de Shorts, posts sociais,
+  fontes configuradas (com pesquisa manual de notícias na web pelo operador), só o site (nada de Shorts, posts sociais,
 nem destinos externos como WordPress/YouTube/redes sociais).
 
 ## Stack
@@ -78,7 +78,8 @@ sem valor. Ignorá-las mata o projeto (desindexação no Google). Ver `docs/PRD.
    passarem o portão de originalidade contra a fonte (`services/translate.py`).
    Deixam de aparecer se o pt for retirado.
 2. **Nunca inventar.** Todo o artigo é a reescrita de uma notícia real, já publicada por
-   uma fonte RSS configurada (nunca pesquisa aberta) — o texto original vive em
+   uma fonte RSS configurada ou descoberta por pesquisa manual do operador (Brave News,
+   botão em Tendências; nunca como pesquisa automática irrestrita) — o texto original vive em
    `sport_facts`. O LLM reformula nas próprias palavras (nunca copia frases inteiras) e a
    atribuição (`metadata.source_name`/`source_url`) é gravada diretamente pelo backend,
    nunca deixada ao critério do LLM escrevê-la no corpo — tem de aparecer sempre, no

@@ -158,7 +158,7 @@ function SourcesSection() {
   const { data: sources } = useQuery({
     queryKey: ['sources'],
     queryFn: async (): Promise<Source[]> => {
-      const { data, error } = await supabase.from('sources').select('*').order('created_at')
+      const { data, error } = await supabase.from('sources').select('*').eq('kind', 'rss').order('created_at')
       if (error) throw new Error(error.message)
       return data
     },

@@ -7,6 +7,8 @@ import { supabase } from '../lib/supabase'
 /** Vista de tendências: termo, score, momentum e estado, atualizada ao vivo. */
 
 type TopicWithJobs = Topic & { jobs: Pick<Job, 'status' | 'error' | 'created_at'>[] }
+type SearchResult = { title: string; url: string; status: 'added' | 'duplicate' | 'unreadable' | 'skipped'; reason: string }
+type SearchReport = { query: string; searched: number; remaining_today: number; results: SearchResult[] }
 
 async function fetchTopics(archived: boolean): Promise<TopicWithJobs[]> {
   const query = supabase
@@ -42,6 +44,7 @@ export default function Trends() {
   const queryClient = useQueryClient()
   const [showArchived, setShowArchived] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
+  const [searchTerm, setSearchTerm] = useState('football soccer')
   const { data: topics, isLoading, error } = useQuery({
     queryKey: ['topics', showArchived ? 'archived' : 'active'],
     queryFn: () => fetchTopics(showArchived),
@@ -71,6 +74,23 @@ export default function Trends() {
     },
   })
 
+  const searchNews = useMutation({
+    mutationFn: async (): Promise<SearchReport> => {
+      const { data } = await supabase.auth.getSession()
+      const token = data.session?.access_token
+      if (!token) throw new Error('Sessão expirada — volta a entrar no painel.')
+      const response = await fetch('/api/admin/news/search', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+        body: JSON.stringify({ query: searchTerm.trim() }),
+      })
+      const body = (await response.json().catch(() => ({}))) as SearchReport & { detail?: string }
+      if (!response.ok) throw new Error(body.detail ?? `HTTP ${response.status}`)
+      return body
+    },
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['topics'] }),
+  })
+
   // aprovação manual (ou repetição) de um topic para geração. A geração em si
   // não é instantânea: o backend só a processa no próximo ciclo do scheduler
   // (por omissão a cada 2 min — ver GENERATE_POLL_INTERVAL_MIN).
@@ -90,6 +110,46 @@ export default function Trends() {
 
   return (
     <div className="space-y-3">
+      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <h2 className="font-semibold text-slate-900">Pesquisar notícias na web</h2>
+        <p className="mt-1 text-xs text-slate-500">
+          Pesquisa notícias das últimas 24 horas (até 8 resultados). Verifica repetições e se consegue ler a fonte.
+          As novas entram em Tendências para decidires se queres gerar um artigo; este botão não usa a IA.
+          Limite de 10 pesquisas em 24 horas.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <input
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            maxLength={100}
+            aria-label="Termos de pesquisa"
+            className="min-w-52 flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
+            placeholder="Ex.: football soccer"
+          />
+          <button
+            type="button"
+            onClick={() => searchNews.mutate()}
+            disabled={searchNews.isPending || searchTerm.trim().length < 3}
+            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          >
+            {searchNews.isPending ? 'A pesquisar e verificar fontes…' : 'Pesquisar notícias agora'}
+          </button>
+        </div>
+        {searchNews.isError && <p className="mt-2 text-sm text-red-700">{searchNews.error.message}</p>}
+        {searchNews.data && (
+          <div className="mt-3 text-sm">
+            <p className="font-medium">{searchNews.data.searched} resultados · {searchNews.data.results.filter((r) => r.status === 'added').length} novos · {searchNews.data.remaining_today} pesquisas disponíveis nas próximas 24h</p>
+            <ul className="mt-2 space-y-2">
+              {searchNews.data.results.map((result, i) => (
+                <li key={`${result.url}-${i}`} className="rounded-md border border-slate-200 px-3 py-2">
+                  <a href={result.url} target="_blank" rel="noreferrer" className="font-medium text-blue-700 hover:underline">{result.title}</a>
+                  <p className={result.status === 'added' ? 'text-green-700' : 'text-slate-600'}>{result.status === 'added' ? 'Adicionada' : 'Ignorada'}: {result.reason}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </section>
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"

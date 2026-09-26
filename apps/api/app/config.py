@@ -8,6 +8,7 @@ class Settings(BaseSettings):
 
     supabase_url: str
     supabase_service_role_key: str
+    brave_search_api_key: str = ""
 
     # Provedor "anthropic-env": Claude via o proxy AWS empresarial — mesmo padrão
     # dos projetos `explicador`/`portifolio`. Outros provedores (e as suas chaves,
