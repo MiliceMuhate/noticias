@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useLocation, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -11,29 +11,27 @@ import { ArticleImage, CategoryLabel, LocalTime, PublicFooter, PublicHeader } fr
 
 /** Página pública de um artigo publicado, por slug — sem login. Ver .claude/design/design.md. */
 
-/** 1 contagem por artigo por separador (sessionStorage) — evita que um refresh
- * ou re-render infle a contagem sozinho. Falha em silêncio: contar visitas
- * nunca deve impedir a leitura do artigo. */
-function useCountView(articleId: string | undefined) {
+/** Conta cada abertura da página, incluindo refresh. O temporizador é cancelado
+ * no cleanup para o StrictMode não duplicar o pedido durante a hidratação. */
+function useCountView(articleId: string | undefined, navigationKey: string) {
   useEffect(() => {
     if (!articleId) return
-    try {
-      const key = `viewed:${articleId}`
-      if (sessionStorage.getItem(key)) return
-      sessionStorage.setItem(key, '1')
-    } catch {
-      // sessionStorage indisponível (privado/bloqueado) — conta sempre, sem deduplicar
-    }
-    void supabase.rpc('increment_article_view', { p_id: articleId })
-  }, [articleId])
+    const timer = window.setTimeout(() => {
+      void supabase.rpc('increment_article_view', { p_id: articleId }).then(({ error }) => {
+        if (error) console.error('Não foi possível contar a visualização:', error)
+      })
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [articleId, navigationKey])
 }
 
 export default function ArticlePage() {
   const { slug } = useParams<{ slug: string }>()
+  const location = useLocation()
   const lang = useLang()
   const t = useT()
   const { data: article, isLoading, error } = useQuery({ ...articleQuery(lang, slug ?? ''), enabled: !!slug })
-  useCountView(article?.id)
+  useCountView(article?.id, location.key)
   useDocumentTitle(article ? articleTitle(article) : null)
   const alternates = article ? parseAlternates(article.alternates) : undefined
   const original = lang !== 'pt' ? alternates?.find((a) => a.lang === 'pt') : undefined
