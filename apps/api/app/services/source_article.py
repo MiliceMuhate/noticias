@@ -12,6 +12,8 @@ from urllib.parse import urlparse
 
 import trafilatura
 
+from ..http_fetch import FetchError, fetch_text
+
 # reserva para quando trafilatura.extract_metadata() não apanha a imagem (viu-se
 # acontecer de forma intermitente na mesma página, provavelmente variação do HTML
 # servido pela fonte) — procura o <meta> diretamente, tolerante à ordem dos atributos.
@@ -52,9 +54,10 @@ def _site_name_from_url(url: str) -> str:
 
 
 def fetch_source_article(url: str) -> SourceArticle:
-    downloaded = trafilatura.fetch_url(url)
-    if not downloaded:
-        raise RuntimeError(f"não foi possível descarregar o artigo: {url}")
+    try:
+        downloaded = fetch_text(url)
+    except FetchError as err:
+        raise RuntimeError(f"não foi possível descarregar o artigo ({err.reason}): {url}") from err
 
     text = trafilatura.extract(downloaded, favor_recall=True)
     if not text or not text.strip():

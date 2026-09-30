@@ -12,6 +12,8 @@ from typing import Any, Literal, Protocol
 
 import feedparser
 
+from ..http_fetch import FetchError, fetch_text
+
 Momentum = Literal["rising", "peaked", "falling"]
 
 
@@ -39,9 +41,13 @@ class RssNewsSource:
         if not url:
             raise RuntimeError("fonte rss sem 'url' no config")
 
-        feed = feedparser.parse(url)
+        try:
+            content = fetch_text(url)
+        except FetchError as err:
+            raise RuntimeError(f"feed rss inacessível ({err.reason}): {url}") from err
+        feed = feedparser.parse(content)
         if feed.bozo and not feed.entries:
-            raise RuntimeError(f"feed rss inválido/inacessível: {url} ({feed.bozo_exception})")
+            raise RuntimeError(f"feed rss inválido: {url} ({feed.bozo_exception})")
 
         region = config.get("region", "global")
         category = config.get("category")
@@ -49,7 +55,8 @@ class RssNewsSource:
 
         articles: list[DiscoveredArticle] = []
         for entry in feed.entries[:max_items]:
-            title = entry.get("title")
+            # alguns feeds (ex.: Record) embrulham o título num CDATA que chega em bruto
+            title = (entry.get("title") or "").replace("<![CDATA[", "").replace("]]>", "").strip()
             link = entry.get("link")
             if not title or not link:
                 continue

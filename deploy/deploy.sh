@@ -32,8 +32,17 @@ supabase db push
 
 echo "[deploy] a (re)construir e reiniciar containers"
 cd "$REPO_DIR/deploy"
-docker compose build
-docker compose up -d --remove-orphans
+# site e API primeiro, e sozinhos: uma falha no Hermes (imagem externa,
+# opcional) nunca pode impedir o site de atualizar — já aconteceu uma vez.
+docker compose build api web
+docker compose up -d --remove-orphans api web
+
+# Hermes (descoberta de notícias): se falhar, fica o aviso e o resto segue
+if docker compose build hermes && docker compose up -d hermes; then
+  echo "[deploy] hermes atualizado"
+else
+  echo "[deploy] AVISO: o contentor do Hermes não construiu/arrancou — o site e a API foram atualizados na mesma"
+fi
 docker image prune -f
 
 echo "[deploy] concluído"
