@@ -57,6 +57,7 @@ async function fetchTopicsLite(): Promise<TopicLite[]> {
   const { data, error } = await supabase
     .from('topics')
     .select('id, term, status, detected_at')
+    .is('archived_at', null)
     .order('detected_at', { ascending: false })
     .limit(200)
   if (error) throw new Error(error.message)
