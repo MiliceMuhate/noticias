@@ -457,6 +457,7 @@ async def translate_published(limit: int = 6) -> None:
         return
     languages = [lang for lang in (cfg.get("languages") or []) if lang in LANGUAGE_NAMES]
     max_attempts = int(cfg.get("max_attempts") or 3)
+    national_only_pt = bool(cfg.get("national_only_pt", True))
     if not languages:
         return
 
@@ -484,6 +485,9 @@ async def translate_published(limit: int = 6) -> None:
 
     done = 0
     for item in items:
+        # notícias nacionais ficam só em português (pedido do operador)
+        if national_only_pt and (item.get("metadata") or {}).get("scope") == "nacional":
+            continue
         current_hash = source_hash(item)
         for lang in languages:
             if done >= limit:

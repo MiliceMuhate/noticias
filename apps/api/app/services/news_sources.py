@@ -1,7 +1,8 @@
 """
-Deteção de notícias reais de futebol — só nas fontes que o operador configurar
-(guardrail: nada de pesquisa aberta na internet). Único provider: RSS, via
-`feedparser` — não precisa de nenhuma chave de API.
+Deteção de notícias reais de futebol — só nas fontes que o operador configurar.
+Provider: RSS, via `feedparser` — não precisa de nenhuma chave de API. A outra
+origem de notícias é o agente Hermes, com ciclo próprio (services/hermes.py), só
+nos domínios aprovados (ver o guardrail #2 no CLAUDE.md).
 """
 
 from __future__ import annotations

@@ -76,10 +76,18 @@ sem valor. Ignorá-las mata o projeto (desindexação no Google). Ver `docs/PRD.
    **Traduções (Fase 7):** as versões en/es/fr de um artigo publicado ficam visíveis
    sem nova aprovação — derivam do texto pt que já foi aprovado, e só aparecem se
    passarem o portão de originalidade contra a fonte (`services/translate.py`).
-   Deixam de aparecer se o pt for retirado.
+   Deixam de aparecer se o pt for retirado. Notícias nacionais (`metadata.scope =
+   'nacional'`, país em `settings.translation.national_country`) ficam só em pt.
 2. **Nunca inventar.** Todo o artigo é a reescrita de uma notícia real, já publicada por
-   uma fonte RSS configurada (nunca pesquisa aberta) — o texto original vive em
-   `sport_facts`. O LLM reformula nas próprias palavras (nunca copia frases inteiras) e a
+   uma fonte configurada — o texto original vive em `sport_facts`.
+   **Alargamento deliberado (Fase 8, 2026-09-30):** a pedido explícito do operador, o
+   agente **Hermes** (Nous Research) pode *procurar* notícias na web e cruzá-las com
+   outras fontes — mas só em domínios aprovados (`settings.hermes.allowed_domains`,
+   imposto pelo backend, não só pedido ao agente), com um mínimo de fontes distintas,
+   e o resultado entra em `topics` como qualquer RSS. O Hermes **nunca escreve nem
+   publica**: corre num contentor sem chave da BD, só com ferramentas web
+   (`deploy/hermes/`). Não lhe dar mais poderes (escrever, publicar, `service_role`,
+   terminal/ficheiros, domínios fora da lista) sem o utilizador pedir explicitamente. O LLM reformula nas próprias palavras (nunca copia frases inteiras) e a
    atribuição (`metadata.source_name`/`source_url`) é gravada diretamente pelo backend,
    nunca deixada ao critério do LLM escrevê-la no corpo — tem de aparecer sempre, no
    cartão de revisão e no artigo publicado.

@@ -7,8 +7,23 @@ services:
     restart: unless-stopped
     env_file:
       - ./api.env
+    environment:
+      # agente de descoberta de notícias (ver hermes/runner.py e
+      # apps/api/app/services/hermes.py) — só pela rede interna do compose
+      HERMES_RUNNER_URL: http://hermes:8700
+      HERMES_RUNNER_TOKEN: ${HERMES_RUNNER_TOKEN:?defina HERMES_RUNNER_TOKEN em deploy/.env}
     ports:
       - "127.0.0.1:8000:8000"
+
+  # Hermes Agent (Nous Research): procura notícias e cruza-as com outras
+  # fontes. Sem chave da base de dados, sem porta publicada, só ferramentas
+  # de pesquisa web — a chave da IA chega a cada execução, vinda do Vault.
+  hermes:
+    build:
+      context: ./hermes
+    restart: unless-stopped
+    environment:
+      RUNNER_TOKEN: ${HERMES_RUNNER_TOKEN:?defina HERMES_RUNNER_TOKEN em deploy/.env}
 
   web:
     build:

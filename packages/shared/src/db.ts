@@ -281,6 +281,28 @@ export interface Database {
         }
         Relationships: []
       }
+      hermes_runs: {
+        Row: {
+          id: string
+          trigger: 'schedule' | 'manual'
+          status: 'running' | 'done' | 'failed'
+          model: string | null
+          input_tokens: number
+          output_tokens: number
+          cost_usd: number
+          stories_found: number
+          stories_inserted: number
+          output: Json | null
+          log_tail: string | null
+          error: string | null
+          started_at: string
+          finished_at: string | null
+        }
+        // escrita só pelo backend (service_role)
+        Insert: Record<string, never>
+        Update: Record<string, never>
+        Relationships: []
+      }
       content_translations: {
         Row: {
           id: string
@@ -350,6 +372,8 @@ export interface Database {
           lang: string
           /** [{lang, slug}] de todas as versões deste artigo, incluindo esta */
           alternates: Json
+          /** outras fontes que confirmam a notícia: [{name, url}] (Hermes) */
+          other_sources: Json
         }
         Relationships: []
       }
@@ -404,3 +428,4 @@ export type Job = Tables<'jobs'>
 export type Profile = Tables<'profiles'>
 export type PublishedArticle = Database['public']['Views']['published_articles']['Row']
 export type ContentTranslation = Tables<'content_translations'>
+export type HermesRun = Tables<'hermes_runs'>

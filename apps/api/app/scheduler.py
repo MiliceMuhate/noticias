@@ -23,6 +23,7 @@ from .log import log, log_error
 from .services.articles import generate_article
 from .services.news_sources import news_source_for
 from .services.scoring import score_topic
+from .services.hermes import hermes_tick
 from .services.translate import translate_published
 from .settings_store import DEFAULT_AUTOPILOT_POLICY, settings_dict
 
@@ -441,6 +442,9 @@ def start() -> None:
     scheduler.add_job(
         generate_pending, "interval", minutes=settings.generate_poll_interval_min, id="generate_pending", next_run_time=now
     )
+    # Hermes (descoberta de notícias): só corre se settings.hermes.enabled, ao
+    # ritmo de settings.hermes.interval_min — este ciclo só verifica
+    scheduler.add_job(hermes_tick, "interval", minutes=5, id="hermes_tick", next_run_time=now, max_instances=1)
     scheduler.add_job(
         translate_published,
         "interval",

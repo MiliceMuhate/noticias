@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import type { ContentTranslation } from '@repo/shared'
 import { supabase } from '../../lib/supabase'
-import { Field, Loading, NumberInput, SaveBar, Section, Toggle } from './fields'
+import { Field, Loading, NumberInput, SaveBar, Section, TextInput, Toggle } from './fields'
 import TranslationReview from './TranslationReview'
 import { useSetting } from './useSetting'
 
@@ -18,9 +18,17 @@ interface TranslationSettings {
   enabled: boolean
   languages: string[]
   max_attempts: number
+  national_country: string
+  national_only_pt: boolean
 }
 
-const DEFAULT_TRANSLATION: TranslationSettings = { enabled: true, languages: ['en', 'es', 'fr'], max_attempts: 3 }
+const DEFAULT_TRANSLATION: TranslationSettings = {
+  enabled: true,
+  languages: ['en', 'es', 'fr'],
+  max_attempts: 3,
+  national_country: 'Moçambique',
+  national_only_pt: true,
+}
 
 type Row = Pick<ContentTranslation, 'id' | 'lang' | 'status' | 'title' | 'error' | 'attempts' | 'updated_at' | 'content_item_id'>
 
@@ -80,6 +88,21 @@ export default function TranslationSection() {
             <Field label="Tentativas por tradução" hint="Depois disto, uma tradução falhada ou bloqueada fica parada até o artigo pt mudar.">
               <NumberInput value={draft.max_attempts} min={1} max={10} onChange={(max_attempts) => setDraft({ ...draft, max_attempts })} />
             </Field>
+          </div>
+          <div className="space-y-2 rounded-md border border-slate-100 p-3">
+            <Toggle
+              checked={draft.national_only_pt}
+              onChange={(national_only_pt) => setDraft({ ...draft, national_only_pt })}
+              label={<><strong>Notícias nacionais só em português</strong> — não são traduzidas.</>}
+            />
+            <div className="max-w-xs">
+              <Field
+                label="País das notícias nacionais"
+                hint="A ficha de factos marca como nacional o que é sobre o futebol deste país (clubes, competições, federação, seleção, jogadores). Vale para artigos gerados daqui em diante."
+              >
+                <TextInput value={draft.national_country} onChange={(national_country) => setDraft({ ...draft, national_country })} />
+              </Field>
+            </div>
           </div>
           <p className="text-xs text-slate-500">
             Cada tradução passa por duas verificações antes de ir para o site. A primeira é a distância à fonte: na

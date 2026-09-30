@@ -165,6 +165,33 @@ Especificação completa em `docs/publicador/` (`TASKS_CONTENT.md`, `PROMPTS.md`
       acessíveis dentro da VPS (`127.0.0.1:8000`, ver `deploy/docker-compose.yml`);
       antes de expor a API ao browser, exigir o JWT do Supabase de um operador.
 
+## Fase 8 — Hermes (descoberta e cruzamento de fontes), partilha, nacionais só em pt
+
+`supabase/migrations/20260930000001_hermes_discovery.sql`, `deploy/hermes/`,
+`apps/api/app/services/hermes.py`, `apps/web/src/pages/Hermes.tsx`.
+
+- [x] **Hermes Agent** (Nous Research, v0.21.5 fixada) só para *procurar* notícias nos
+      domínios aprovados e cruzar cada uma com outras fontes. Corre num contentor
+      próprio (`deploy/hermes/runner.py`) sem chave da BD, sem porta pública, só com
+      `-t web`, HERMES_HOME descartável por execução e a chave da IA vinda do Vault a
+      cada execução (troca-se no painel sem reiniciar).
+- [x] O backend não confia no que o Hermes devolve: domínio aprovado (principal e
+      confirmações), mínimo de fontes distintas, sem duplicados; o que passa entra em
+      `topics` ('detected') e segue a cadeia editorial de sempre.
+- [x] Publicador: as fontes cruzadas entram na ficha de factos só para marcar
+      `certeza: confirmado` (nunca factos novos) e são atribuídas no artigo
+      ("Também noticiado por", `metadata.sources` → `published_articles.other_sources`).
+- [x] Aba **Hermes** no painel: executar agora, automático + intervalo, chaves (IA e
+      Brave) no Vault, configuração, e gastos (hoje / 7 dias / mês, por execução e por
+      notícia), a partir de `hermes_runs` (`--usage-file` do Hermes).
+- [x] Notícias **nacionais** (ficha de factos: `ambito`) só em português.
+- [x] Botão de **partilha** na página do artigo (nativo no telemóvel, WhatsApp,
+      Facebook, X, Telegram, copiar ligação).
+- [ ] Por fazer: sem teste ponta a ponta do contentor do Hermes na VPS; o Hermes não
+      tem lista de domínios permitidos própria (só no pedido + validação no backend),
+      por isso pode *ler* páginas fora da lista durante a pesquisa — só não as pode
+      propor.
+
 ## Definição de "concluído" (qualquer fase)
 
 - Corre localmente com `supabase start` + `apps/api` (uvicorn) + `apps/web`.

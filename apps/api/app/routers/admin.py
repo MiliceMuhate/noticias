@@ -6,6 +6,7 @@ substitui o gate de aprovação: estas rotas nunca tocam em `content_items.statu
 Todas exigem a sessão de um operador (ver app/auth.py).
 """
 
+import asyncio
 from typing import Any
 
 from fastapi import APIRouter, Depends
@@ -13,6 +14,7 @@ from pydantic import BaseModel, Field
 
 from ..auth import require_operator
 from ..llm import test_model
+from ..services.hermes import run_discovery
 from ..scheduler import discover_articles, generate_pending, score_detected_topics
 
 router = APIRouter(prefix="/admin", dependencies=[Depends(require_operator)])
@@ -42,3 +44,16 @@ class AiTestRequest(BaseModel):
 @router.post("/ai/test")
 async def ai_test(req: AiTestRequest) -> dict[str, Any]:
     return await test_model(req.provider, req.model.strip(), req.question.strip())
+
+
+_background: set[asyncio.Task] = set()
+
+
+@router.post("/hermes/run")
+async def hermes_run() -> dict[str, str]:
+    """Execução manual do Hermes. Pode levar minutos — corre em segundo plano; o
+    painel acompanha-a por hermes_runs."""
+    task = asyncio.create_task(run_discovery("manual"))
+    _background.add(task)
+    task.add_done_callback(_background.discard)
+    return {"status": "started"}

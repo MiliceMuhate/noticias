@@ -23,4 +23,12 @@ def settings_dict(cfg: dict[str, Any], key: str, default: dict) -> dict:
 
 DEFAULT_AUTOPILOT_POLICY = {"min_originality": "pass", "min_audit": "aprovado"}
 DEFAULT_EDITORIAL_PIPELINE = {"rewrite_on_audit_review": True, "audit_strictness": "normal"}
-DEFAULT_TRANSLATION = {"enabled": True, "languages": ["en", "es", "fr"], "max_attempts": 3}
+DEFAULT_TRANSLATION = {
+    "enabled": True,
+    "languages": ["en", "es", "fr"],
+    "max_attempts": 3,
+    # notícias sobre o futebol deste país (metadata.scope = "nacional",
+    # decidido pela ficha de factos) ficam só em português
+    "national_country": "Moçambique",
+    "national_only_pt": True,
+}

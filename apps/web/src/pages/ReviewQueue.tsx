@@ -42,6 +42,8 @@ interface ContentMeta {
   source_url?: string
   originality?: OriginalityMetadata
   self_audit?: AuditMetadata | null
+  /** 'nacional' → só em português (settings.translation.national_only_pt) */
+  scope?: 'nacional' | 'internacional'
   afirmacoes_de_contexto?: string[]
   alternativas?: string[]
 }
@@ -423,6 +425,9 @@ function ReviewCard({
           </>
         )}
         {meta?.self_audit && <AuditBadge audit={meta.self_audit} />}
+        {meta?.scope === 'nacional' && (
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">Nacional · só em português</span>
+        )}
       </div>
       {meta?.source_url && (
         <a

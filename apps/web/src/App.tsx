@@ -8,6 +8,7 @@ import Trends from './pages/Trends'
 import Automacao from './pages/Automacao'
 import Config from './pages/Config'
 import Costs from './pages/Costs'
+import Hermes from './pages/Hermes'
 import NewsList from './pages/public/NewsList'
 import ArticlePage from './pages/public/ArticlePage'
 import PrivacyPolicy from './pages/public/PrivacyPolicy'
@@ -80,6 +81,7 @@ function Dashboard({ email }: { email: string }) {
             <NavLink to="tendencias" className={navClass}>Tendências</NavLink>
             <NavLink to="automacao" className={navClass}>Piloto automático</NavLink>
             <NavLink to="gastos" className={navClass}>Gastos IA</NavLink>
+            <NavLink to="hermes" className={navClass}>Hermes</NavLink>
             <NavLink to="config" className={navClass}>Configuração</NavLink>
           </nav>
         </div>
@@ -91,6 +93,7 @@ function Dashboard({ email }: { email: string }) {
           <Route path="tendencias" element={<Trends />} />
           <Route path="automacao" element={<Automacao />} />
           <Route path="gastos" element={<Costs />} />
+          <Route path="hermes" element={<Hermes />} />
           <Route path="config" element={<Config />} />
         </Routes>
       </main>

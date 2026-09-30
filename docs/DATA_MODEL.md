@@ -161,7 +161,8 @@ omissão em `supabase/seed.sql` e ajustáveis sem novo deploy:
 - `ai_providers` — `{default: {provider, model}, providers: [{id, label, kind: anthropic|openai_compatible, base_url, use_env_credentials, headers, json_mode, token_param, models: [{id, input_usd_per_mtok, output_usd_per_mtok}]}]}`. `headers` só para valores **não** secretos; a chave de cada provedor vive no Vault (secção "Vault" abaixo). `use_env_credentials=true` (o provedor `anthropic-env`) usa `ANTHROPIC_*` do `.env`. Lido por `apps/api/app/llm.py` com cache de 30 s.
 - `autopilot_policy` — `{min_originality: pass|review, min_audit: aprovado|rever}`. O que `auto_publish_ready()` aceita publicar sozinho; omisso = o mais rigoroso. `block`/`bloquear` nunca publicam. Ver guardrail #1 no CLAUDE.md.
 - `editorial_pipeline` — `{rewrite_on_audit_review, audit_strictness: tolerante|normal|rigoroso}`. Reescrita dirigida (P6) também quando a auditoria diz `rever`; nível de rigor passado ao prompt da auditoria.
-- `translation` — `{enabled, languages: ["en","es","fr"], max_attempts}`.
+- `translation` — `{enabled, languages: ["en","es","fr"], max_attempts, national_country, national_only_pt}`.
+- `hermes` — `{enabled, interval_min, max_stories, min_sources, focus, allowed_domains, provider, base_url, model, reasoning, provider_flag, web_backend: ddgs|brave, max_turns, timeout_sec, input_usd_per_mtok, output_usd_per_mtok}`. Chaves no Vault: `hermes` (IA) e `hermes-search` (Brave).
 - `controlled_tags` — vocabulário fechado; P4 nunca inventa tags fora daqui.
 - `publishing_limits` — `{max_published_per_day, max_per_source_per_day, require_manual_edit_every_n}`; o primeiro imposto em `enforce_review_gate` (BD), sempre, independentemente de quem publica; os outros dois não têm imposição na BD — só `scheduler.auto_publish_ready()` os respeita quando o piloto automático está ligado (uma aprovação manual avulsa no dashboard não é limitada por eles) — ver `docs/publicador/TASKS_CONTENT.md` "A perguntar depois". (Existiu também `min_minutes_between_publications` — removido a pedido do operador, 2026-09-24.)
 - `autopilot` — `{enabled, auto_published_streak, started_by, started_at, stopped_by, stopped_at}`. Interruptor do piloto automático (Fase 6, `docs/TASKS.md`): com `enabled=true`, `enforce_review_gate` deixa o backend (`service_role`) publicar sem `auth.uid()` humano. Editável por qualquer operador autenticado (mesma policy de `settings`); `auto_published_streak` é escrito pelo próprio backend.
@@ -186,6 +187,29 @@ Uma tradução (en/es/fr) de um artigo pt publicado. Escrita só pelo backend
 | error | text | |
 | attempts | int | até `settings.translation.max_attempts` |
 | created_at, updated_at | timestamptz | |
+
+### `hermes_runs`
+Uma execução do agente Hermes (descoberta de notícias, Fase 8). Escrita só pelo
+backend; RLS: `select` para operadores. Alimenta a aba "Hermes" (gastos).
+
+| coluna | tipo | notas |
+|---|---|---|
+| id | uuid PK | |
+| trigger | text | `schedule` \| `manual` |
+| status | text | `running` \| `done` \| `failed` (presa em `running` além do timeout → `failed`) |
+| model | text | |
+| input_tokens / output_tokens | int | execução principal + auxiliares do `--usage-file` |
+| cost_usd | numeric | preços de `settings.hermes`, ou a estimativa do Hermes |
+| stories_found / stories_inserted | int | propostas pelo Hermes / aceites pelo backend e inseridas em `topics` |
+| output | jsonb | `{accepted: [...], rejected: [razões]}` |
+| log_tail, error | text | |
+| started_at, finished_at | timestamptz | |
+
+Notícias do Hermes: `topics.source_id` → fonte `kind='hermes'` (enabled=false, fora
+do ciclo RSS); `topics.raw_data.hermes = {run_id, primary_source, national,
+corroborating: [{url, source, confirms}], discrepancies}`. No artigo:
+`content_items.metadata.sources = [{name, url}]` e `metadata.scope =
+'nacional'|'internacional'` (da ficha de factos — nacional fica só em pt).
 
 ### Vault — chaves de provedores de IA
 Secrets com o nome `ai_provider_key:<provider_id>`. Três funções `security definer`:

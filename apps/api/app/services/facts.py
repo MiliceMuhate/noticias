@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..exceptions import TopicRejected
 from ..llm import UsageTracker, complete_json
 from ..prompts import render
+from ..settings_store import DEFAULT_TRANSLATION, get_settings, settings_dict
 from .source_article import SourceArticle
 
 EventoTipo = Literal["jogo", "transferencia", "lesao", "declaracao", "institucional", "competicao", "outro"]
@@ -73,6 +74,9 @@ class FactSheet(BaseModel):
     citacoes: list[Citacao] = Field(default_factory=list)
     lacunas: list[str] = Field(default_factory=list)
     densidade: Densidade
+    # "nacional" = sobre o futebol do país do site (settings.translation.national_country);
+    # decide se o artigo é traduzido (ver services/translate.py). Omisso nas fichas antigas.
+    ambito: Literal["nacional", "internacional"] = "internacional"
 
 
 # Schema escrito à mão (não Pydantic .model_json_schema(), que gera $ref/$defs para
@@ -147,8 +151,9 @@ FACT_SHEET_SCHEMA: dict = {
         },
         "lacunas": {"type": "array", "items": {"type": "string"}},
         "densidade": {"type": "string", "enum": list(Densidade.__args__)},
+        "ambito": {"type": "string", "enum": ["nacional", "internacional"]},
     },
-    "required": ["evento", "tipo", "quando", "entidades", "factos", "numeros", "citacoes", "lacunas", "densidade"],
+    "required": ["evento", "tipo", "quando", "entidades", "factos", "numeros", "citacoes", "lacunas", "densidade", "ambito"],
     "additionalProperties": False,
 }
 
@@ -164,11 +169,18 @@ def _violations(sheet: FactSheet) -> list[str]:
     return [f.id for f in sheet.factos if len(f.nota.split()) > MAX_NOTE_WORDS]
 
 
-async def _call(article: SourceArticle, tracker: UsageTracker) -> FactSheet:
+def _national_country() -> str:
+    cfg = settings_dict(get_settings(["translation"]), "translation", DEFAULT_TRANSLATION)
+    return cfg.get("national_country") or DEFAULT_TRANSLATION["national_country"]
+
+
+async def _call(article: SourceArticle, tracker: UsageTracker, corroboration: str = "") -> FactSheet:
     system = render("extract_facts", "system")
     user = render(
         "extract_facts",
         "user",
+        corroboration=corroboration,
+        national_country=_national_country(),
         provider=article.site_name,
         source_url=article.url,
         title=article.title or "",
@@ -188,13 +200,15 @@ async def _call(article: SourceArticle, tracker: UsageTracker) -> FactSheet:
         raise FactExtractionError(f"ficha de factos inválida: {err}") from err
 
 
-async def extract_facts(article: SourceArticle, tracker: UsageTracker) -> FactSheet:
-    sheet = await _call(article, tracker)
+async def extract_facts(article: SourceArticle, tracker: UsageTracker, corroboration: str = "") -> FactSheet:
+    """`corroboration`: bloco das fontes cruzadas pelo Hermes (services/hermes.py) —
+    só reforça a certeza de factos que já estão no texto da fonte principal."""
+    sheet = await _call(article, tracker, corroboration)
 
     if _violations(sheet):
         # uma nota longa demais — repete uma vez, depois desiste (a chamada acima
         # já é o pedido "normal"; isto é só uma segunda tentativa, não um loop)
-        sheet = await _call(article, tracker)
+        sheet = await _call(article, tracker, corroboration)
         if _violations(sheet):
             raise FactExtractionError(f"notas acima de {MAX_NOTE_WORDS} palavras mesmo após repetição")
 

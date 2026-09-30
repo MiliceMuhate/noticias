@@ -27,6 +27,7 @@ from ..settings_store import DEFAULT_EDITORIAL_PIPELINE, get_settings, settings_
 from .brief import EditorialBrief, editorial_brief
 from .entities import entities_from_facts
 from .facts import FactSheet, extract_facts
+from .hermes import corroboration_for, corroboration_prompt_block
 from .originality import OriginalityReport, check as check_originality
 from .self_audit import AuditResult, rewrite_flagged, self_audit
 from .source_article import fetch_source_article, mock_source_article
@@ -359,7 +360,9 @@ async def generate_article(topic: dict[str, Any], tracker: UsageTracker) -> str:
     sport_facts_id = facts_res.data[0]["id"]
 
     # P1 — pode levantar TopicRejected (fonte sem substância)
-    facts = await extract_facts(source, tracker)
+    # notícias do Hermes trazem outras fontes que confirmam a mesma história
+    corroboration = corroboration_for(topic.get("raw_data"))
+    facts = await extract_facts(source, tracker, corroboration_prompt_block(corroboration))
     supabase.table("sport_facts").update(
         {"data": {"title": source.title, "text": source.text, "facts": facts.model_dump()}}
     ).eq("id", sport_facts_id).execute()
@@ -483,12 +486,20 @@ async def generate_article(topic: dict[str, Any], tracker: UsageTracker) -> str:
                         "alternativas": pkg.alternativas,
                         "variation": brief.variacao,
                         "desk": desk,
+                        # nacional → só em português (services/translate.py)
+                        "scope": facts.ambito,
                         "trace": [t.model_dump() for t in write_result.trace],
                         "afirmacoes_de_contexto": write_result.afirmacoes_de_contexto,
                         "originality": report.as_metadata(),
                         "self_audit": audit.model_dump() if audit else None,
                         "source_name": source.site_name,
                         "source_url": source.url,
+                        # outras fontes que confirmam a notícia (Hermes) — também
+                        # atribuídas no artigo publicado (guardrail #2)
+                        "sources": [
+                            {"name": c.get("source"), "url": c.get("url")}
+                            for c in (corroboration or {}).get("corroborating") or []
+                        ],
                         "prompt_version": "publicador-v1",
                     },
                 }

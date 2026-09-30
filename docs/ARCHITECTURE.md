@@ -89,6 +89,14 @@ scheduler interno (APScheduler, arrancado no `lifespan` da app — ver `app/main
   uma correção (`translate_fix`) se disser "rever" → `ready` ou `blocked`. Um
   operador revê uma amostra no painel e pode retirar uma tradução (`withdrawn`). Se o
   pt for editado, `source_hash` deixa de bater e refaz.
+- **`hermes_tick`** (5 min; só corre se `settings.hermes.enabled` e já passou
+  `interval_min`): `app/services/hermes.py` pede ao contentor `hermes`
+  (`deploy/hermes/runner.py`, rede interna do compose, token partilhado
+  `HERMES_RUNNER_TOKEN`) uma execução `hermes -z … -t web --usage-file`, com a chave
+  da IA lida do Vault nesse momento. Valida o JSON devolvido (domínios aprovados,
+  fontes distintas, duplicados), insere em `topics` e regista tokens/custo em
+  `hermes_runs`. O Hermes nunca vê a BD. `POST /admin/hermes/run` (painel) corre uma
+  execução manual em segundo plano.
 - **LLM configurável** (`app/llm.py`): cada passo pede o modelo pelo nome do passo;
   `resolve_step` lê `settings.model_by_step` + `settings.ai_providers` (cache 30 s) e
   chama `/v1/messages` (tipo `anthropic`) ou `/chat/completions` (tipo

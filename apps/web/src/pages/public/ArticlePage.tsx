@@ -8,6 +8,7 @@ import { articleQuery } from '../../lib/publicData'
 import { articlePath, articleTitle, useDocumentTitle } from '../../lib/seo'
 import { supabase } from '../../lib/supabase'
 import { ArticleImage, CategoryLabel, LocalTime, PublicFooter, PublicHeader } from './PublicChrome'
+import ShareButtons from './ShareButtons'
 
 /** Página pública de um artigo publicado, por slug — sem login. Ver .claude/design/design.md. */
 
@@ -38,6 +39,10 @@ export default function ArticlePage() {
   const alternates = article ? parseAlternates(article.alternates) : undefined
   const original = lang !== 'pt' ? alternates?.find((a) => a.lang === 'pt') : undefined
 
+  const otherSources = (Array.isArray(article?.other_sources) ? (article.other_sources as unknown[]) : []).filter(
+    (s): s is { name: string; url: string } =>
+      !!s && typeof s === 'object' && typeof (s as { url?: unknown }).url === 'string' && /^https?:\/\//.test((s as { url: string }).url),
+  )
   const tags = Array.isArray(article?.tags) ? (article.tags as unknown[]).filter((t): t is string => typeof t === 'string') : []
 
   return (
@@ -74,6 +79,9 @@ export default function ArticlePage() {
                 </span>
               )}
             </div>
+            <div className="mt-4">
+              <ShareButtons title={article.title ?? ''} />
+            </div>
 
             <ArticleImage
               src={article.media_url}
@@ -104,6 +112,21 @@ export default function ArticlePage() {
                 >
                   {t('viewOriginal')}
                 </a>
+                {otherSources.length > 0 && (
+                  <>
+                    <br />
+                    {t('alsoReportedBy')}:{' '}
+                    {otherSources.map((s, i) => (
+                      <span key={s.url}>
+                        {i > 0 && ', '}
+                        <a href={s.url} target="_blank" rel="noreferrer" className="font-bold text-delvis-teal underline hover:text-delvis-teal-600">
+                          {s.name || new URL(s.url).hostname.replace(/^www\./, '')}
+                        </a>
+                      </span>
+                    ))}
+                    .
+                  </>
+                )}
                 {original && (
                   <>
                     <br />
@@ -119,6 +142,10 @@ export default function ArticlePage() {
                 )}
               </p>
             )}
+
+            <div className="mt-8 border-t border-delvis-line pt-6">
+              <ShareButtons title={article.title ?? ''} />
+            </div>
 
             {tags.length > 0 && (
               <div className="mt-8 flex flex-wrap gap-2 border-t border-delvis-line pt-6">
