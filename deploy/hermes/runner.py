@@ -131,8 +131,12 @@ class Handler(BaseHTTPRequestHandler):
         if self.path != "/run":
             self._send(404, {"error": "not found"})
             return
+        if not RUNNER_TOKEN:
+            # sem token configurado fica inativo — nunca corre sem autenticação
+            self._send(503, {"error": "RUNNER_TOKEN não definido em deploy/.env — Hermes inativo"})
+            return
         auth = self.headers.get("Authorization", "")
-        if not RUNNER_TOKEN or not hmac.compare_digest(auth, f"Bearer {RUNNER_TOKEN}"):
+        if not hmac.compare_digest(auth, f"Bearer {RUNNER_TOKEN}"):
             self._send(401, {"error": "unauthorized"})
             return
         length = int(self.headers.get("Content-Length") or 0)
@@ -152,7 +156,9 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
+    # sem token não sai (sairia em ciclo com restart: unless-stopped): fica de
+    # pé mas recusa todos os pedidos /run com 503 até o token ser definido
     if not RUNNER_TOKEN:
-        raise SystemExit("RUNNER_TOKEN não definido — recuso arrancar sem autenticação")
+        print("[hermes-runner] AVISO: RUNNER_TOKEN não definido — inativo, todos os pedidos são recusados", flush=True)
     print(f"[hermes-runner] a ouvir em :{PORT}", flush=True)
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()

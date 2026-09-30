@@ -9,9 +9,11 @@ services:
       - ./api.env
     environment:
       # agente de descoberta de notícias (ver hermes/runner.py e
-      # apps/api/app/services/hermes.py) — só pela rede interna do compose
+      # apps/api/app/services/hermes.py) — só pela rede interna do compose.
+      # Sem HERMES_RUNNER_TOKEN em deploy/.env o deploy segue na mesma: só o
+      # Hermes fica inativo (recusa pedidos), o resto do site atualiza.
       HERMES_RUNNER_URL: http://hermes:8700
-      HERMES_RUNNER_TOKEN: ${HERMES_RUNNER_TOKEN:?defina HERMES_RUNNER_TOKEN em deploy/.env}
+      HERMES_RUNNER_TOKEN: ${HERMES_RUNNER_TOKEN:-}
     ports:
       - "127.0.0.1:8000:8000"
 
@@ -23,7 +25,7 @@ services:
       context: ./hermes
     restart: unless-stopped
     environment:
-      RUNNER_TOKEN: ${HERMES_RUNNER_TOKEN:?defina HERMES_RUNNER_TOKEN em deploy/.env}
+      RUNNER_TOKEN: ${HERMES_RUNNER_TOKEN:-}
 
   web:
     build:

@@ -394,6 +394,8 @@ async def run_discovery(trigger: str = "schedule") -> dict[str, Any]:
         }
         async with httpx.AsyncClient(timeout=body["timeout_sec"] + 60) as client:
             response = await client.post(f"{runner_url}/run", json=body, headers={"Authorization": f"Bearer {runner_token}"})
+        if response.status_code == 503:
+            raise RuntimeError("o contentor do Hermes está inativo: falta HERMES_RUNNER_TOKEN em deploy/.env na VPS")
         response.raise_for_status()
         result = response.json()
 
