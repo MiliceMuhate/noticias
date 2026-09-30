@@ -46,6 +46,10 @@ ProviderKind = Literal["anthropic", "openai_compatible"]
 class ModelPricing:
     input_usd_per_mtok: float | None = None
     output_usd_per_mtok: float | None = None
+    # esforço/raciocínio deste modelo (anthropic: output_config.effort;
+    # openai_compatible: reasoning_effort, sobrepõe-se ao do provedor). Vazio =
+    # não enviar — alguns modelos recusam o parâmetro (ex.: Claude Haiku 4.5).
+    effort: str | None = None
     # preços que mudam numa data (ex.: Gemini 3.8 Flash duplica a 2027-01-01):
     # [(data, entrada, saída)], ordenados — vale o mais recente já em vigor
     changes: list[tuple[datetime.date, float, float]] = field(default_factory=list)
@@ -143,7 +147,10 @@ def _parse_provider(raw: dict[str, Any]) -> Provider | None:
         for m in raw.get("models") or []:
             if isinstance(m, dict) and m.get("id"):
                 models[m["id"]] = ModelPricing(
-                    m.get("input_usd_per_mtok"), m.get("output_usd_per_mtok"), _parse_price_changes(m.get("price_changes"))
+                    m.get("input_usd_per_mtok"),
+                    m.get("output_usd_per_mtok"),
+                    m.get("effort") or None,
+                    _parse_price_changes(m.get("price_changes")),
                 )
             elif isinstance(m, str):
                 models[m] = ModelPricing()
@@ -263,6 +270,11 @@ async def _client_for(provider: Provider) -> httpx.AsyncClient:
         return client
 
 
+def _model_effort(provider: Provider, model: str) -> str | None:
+    pricing = provider.models.get(model)
+    return pricing.effort if pricing and pricing.effort else None
+
+
 def _cost(
     provider: Provider, model: str, input_tokens: int, output_tokens: int, day: datetime.date | None = None
 ) -> float:
@@ -294,7 +306,13 @@ def _parse_json_strict(raw: str) -> dict:
 
 
 class TruncatedResponse(RuntimeError):
-    """O modelo parou por ter atingido o limite de tokens — a resposta está incompleta."""
+    """O modelo parou por ter atingido o limite de tokens — a resposta está incompleta.
+    Leva os tokens gastos: pagam-se na mesma, e têm de chegar aos Gastos IA."""
+
+    def __init__(self, message: str, input_tokens: int = 0, output_tokens: int = 0):
+        super().__init__(message)
+        self.input_tokens = input_tokens
+        self.output_tokens = output_tokens
 
 
 # erros que valem nova tentativa: sobrecarga (503 "high demand"), limite de
@@ -345,8 +363,14 @@ async def _anthropic_call(
         "system": system,
         "messages": [{"role": "user", "content": prompt}],
     }
+    output_config: dict[str, Any] = {}
     if schema is not None:
-        body["output_config"] = {"format": {"type": "json_schema", "schema": schema}}
+        output_config["format"] = {"type": "json_schema", "schema": schema}
+    effort = _model_effort(provider, model)
+    if effort:
+        output_config["effort"] = effort
+    if output_config:
+        body["output_config"] = output_config
     response = await _post(client, "/v1/messages", body)
     _raise_for_status(provider, model, response)
     data = response.json()
@@ -354,7 +378,9 @@ async def _anthropic_call(
     if data.get("stop_reason") == "max_tokens":
         raise TruncatedResponse(
             f"{provider.label or provider.id} / {model}: resposta cortada — atingiu o limite de "
-            f"{max_tokens} tokens. Aumenta \"Tokens extra\" no provedor."
+            f"{max_tokens} tokens. Baixa o \"Esforço\" do modelo ou aumenta \"Tokens extra\" no provedor.",
+            usage.get("input_tokens", 0) or 0,
+            usage.get("output_tokens", 0) or 0,
         )
     text_block = next((b for b in data.get("content", []) if b.get("type") == "text"), None)
     if not text_block:
@@ -377,8 +403,9 @@ async def _openai_call(
             provider.token_param: max_tokens,
             "messages": [{"role": "system", "content": sys_text}, {"role": "user", "content": prompt}],
         }
-        if provider.reasoning_effort:
-            body["reasoning_effort"] = provider.reasoning_effort
+        effort = _model_effort(provider, model) or provider.reasoning_effort
+        if effort:
+            body["reasoning_effort"] = effort
         if json_mode == "json_schema":
             body["response_format"] = {
                 "type": "json_schema",
@@ -404,7 +431,9 @@ async def _openai_call(
         raise TruncatedResponse(
             f"{provider.label or provider.id} / {model}: resposta cortada — atingiu o limite de "
             f"{max_tokens} tokens ({output_tokens} usados, a maior parte provavelmente a raciocinar). "
-            f"Baixa \"Raciocínio\" ou aumenta \"Tokens extra\" no provedor."
+            f"Baixa o \"Esforço\"/\"Raciocínio\" ou aumenta \"Tokens extra\" no provedor.",
+            input_tokens,
+            output_tokens,
         )
     content = (choices[0].get("message") or {}).get("content") if choices else None
     if not content:
@@ -437,9 +466,14 @@ async def _call_with(
     tracker: UsageTracker | None,
 ) -> str:
     call = _anthropic_call if provider.kind == "anthropic" else _openai_call
-    text, input_tokens, output_tokens = await call(
-        provider, model, system, prompt, max_tokens + provider.extra_tokens, schema
-    )
+    try:
+        text, input_tokens, output_tokens = await call(
+            provider, model, system, prompt, max_tokens + provider.extra_tokens, schema
+        )
+    except TruncatedResponse as err:
+        if tracker is not None:
+            tracker.add(err.input_tokens, err.output_tokens, _cost(provider, model, err.input_tokens, err.output_tokens), f"{provider.id}/{model}")
+        raise
     if tracker is not None:
         tracker.add(input_tokens, output_tokens, _cost(provider, model, input_tokens, output_tokens), f"{provider.id}/{model}")
     return text

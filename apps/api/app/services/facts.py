@@ -190,7 +190,7 @@ async def _call(article: SourceArticle, tracker: UsageTracker, corroboration: st
         system=system,
         prompt=user,
         schema=FACT_SHEET_SCHEMA,
-        max_tokens=2048,
+        max_tokens=4096,
         step="extract_facts",
         tracker=tracker,
     )

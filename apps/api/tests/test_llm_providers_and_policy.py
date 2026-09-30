@@ -148,3 +148,49 @@ def test_incomplete_price_change_is_ignored():
          "models": [{"id": "m", "input_usd_per_mtok": 1, "output_usd_per_mtok": 2, "price_changes": [{"from": "2027-01-01"}]}]}
     )
     assert provider.models["m"].changes == []
+
+
+# --- esforço por modelo e custo das respostas cortadas ------------------------------
+
+def _anthropic_client(handler):
+    return httpx.AsyncClient(base_url="https://x.test", transport=httpx.MockTransport(handler))
+
+
+async def test_anthropic_effort_per_model_is_sent_with_json_format(monkeypatch):
+    seen: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, json={"content": [{"type": "text", "text": '{"ok": true}'}], "usage": {"input_tokens": 10, "output_tokens": 5}, "stop_reason": "end_turn"})
+
+    provider = llm._parse_provider({"id": "a", "kind": "anthropic", "models": [{"id": "claude-sonnet-5", "effort": "low"}, {"id": "claude-haiku-4-5"}]})
+    client = _anthropic_client(handler)
+
+    async def fake_client(_p):
+        return client
+
+    monkeypatch.setattr(llm, "_client_for", fake_client)
+    for model in ("claude-sonnet-5", "claude-haiku-4-5"):
+        monkeypatch.setattr(llm, "resolve_step", lambda step, m=model: (provider, m))
+        await llm.complete_json(step="x", system="s", prompt="p", schema={"type": "object"})
+    assert seen[0]["output_config"] == {"format": {"type": "json_schema", "schema": {"type": "object"}}, "effort": "low"}
+    assert "effort" not in seen[1]["output_config"]  # Haiku 4.5 recusa o parâmetro — nunca se envia sem estar pedido
+
+
+async def test_truncated_response_still_records_tokens_and_cost(monkeypatch):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"content": [], "usage": {"input_tokens": 1_000_000, "output_tokens": 100_000}, "stop_reason": "max_tokens"})
+
+    provider = llm._parse_provider({"id": "a", "kind": "anthropic", "models": [{"id": "m", "input_usd_per_mtok": 1, "output_usd_per_mtok": 5}]})
+    client = _anthropic_client(handler)
+
+    async def fake_client(_p):
+        return client
+
+    monkeypatch.setattr(llm, "_client_for", fake_client)
+    monkeypatch.setattr(llm, "resolve_step", lambda step: (provider, "m"))
+    tracker = llm.UsageTracker()
+    with pytest.raises(llm.TruncatedResponse):
+        await llm.complete_json(step="x", system="s", prompt="p", schema={"type": "object"}, tracker=tracker)
+    assert (tracker.input_tokens, tracker.output_tokens) == (1_000_000, 100_000)
+    assert tracker.cost_usd == pytest.approx(1.5)

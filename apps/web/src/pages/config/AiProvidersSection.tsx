@@ -28,6 +28,8 @@ interface ModelEntry {
   output_usd_per_mtok: number | null
   /** preços que mudam numa data (ex.: Gemini 3.8 Flash duplica a 2027-01-01) */
   price_changes?: PriceChange[]
+  /** esforço/raciocínio deste modelo — vazio = não enviar (alguns modelos recusam) */
+  effort?: string
 }
 
 interface Provider {
@@ -517,10 +519,21 @@ function ProviderCard({
         <div className="space-y-2">
           {p.models.map((m, i) => (
             <div key={i}>
-              <div className="grid grid-cols-[1fr_6rem_6rem_auto_auto] items-center gap-2">
+              <div className="grid grid-cols-[1fr_6rem_6rem_7rem_auto_auto] items-center gap-2">
                 <TextInput value={m.id} onChange={(id) => setModel(i, { id: id.trim() })} placeholder="ex.: gpt-…" />
                 <NumberInput value={m.input_usd_per_mtok ?? 0} step={0.01} onChange={(v) => setModel(i, { input_usd_per_mtok: v })} />
                 <NumberInput value={m.output_usd_per_mtok ?? 0} step={0.01} onChange={(v) => setModel(i, { output_usd_per_mtok: v })} />
+                <Select
+                  value={m.effort ?? ''}
+                  onChange={(effort) => setModel(i, { effort: effort || undefined })}
+                  options={[
+                    { value: '', label: 'padrão' },
+                    ...(p.kind === 'openai_compatible' ? [{ value: 'none', label: 'none' }] : []),
+                    { value: 'low', label: 'low' },
+                    { value: 'medium', label: 'medium' },
+                    { value: 'high', label: 'high' },
+                  ]}
+                />
                 <button
                   onClick={() => setTesting(testing === i ? null : i)}
                   disabled={!m.id}
@@ -543,10 +556,11 @@ function ProviderCard({
             </div>
           ))}
           {p.models.length > 0 && (
-            <div className="grid grid-cols-[1fr_6rem_6rem_auto_auto] gap-2 text-[11px] text-slate-400">
+            <div className="grid grid-cols-[1fr_6rem_6rem_7rem_auto_auto] gap-2 text-[11px] text-slate-400">
               <span>id</span>
               <span>entrada $/M</span>
               <span>saída $/M</span>
+              <span title="Quanto o modelo raciocina antes de responder. Os que raciocinam gastam o limite de tokens nisso.">esforço</span>
               <span />
               <span />
             </div>

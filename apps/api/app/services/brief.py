@@ -153,7 +153,7 @@ async def editorial_brief(
         system=system,
         prompt=user,
         schema=BRIEF_SCHEMA,
-        max_tokens=2048,
+        max_tokens=4096,
         step="editorial_brief",
         tracker=tracker,
     )

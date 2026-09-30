@@ -287,7 +287,7 @@ async def _audit(
             body=result.body,
         ),
         schema=AUDIT_SCHEMA,
-        max_tokens=2048,
+        max_tokens=4096,
         tracker=tracker,
     )
     return TranslationAudit.model_validate(data)

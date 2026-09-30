@@ -244,7 +244,7 @@ async def package(
         system=system,
         prompt=user,
         schema=PACKAGE_SCHEMA,
-        max_tokens=1024,
+        max_tokens=2048,
         step="package",
         tracker=tracker,
     )

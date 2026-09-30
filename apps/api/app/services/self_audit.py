@@ -130,7 +130,7 @@ async def self_audit(
         system=system,
         prompt=user,
         schema=AUDIT_SCHEMA,
-        max_tokens=2048,
+        max_tokens=4096,
         step="self_audit",
         tracker=tracker,
     )
