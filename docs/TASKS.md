@@ -192,6 +192,19 @@ Especificação completa em `docs/publicador/` (`TASKS_CONTENT.md`, `PROMPTS.md`
       por isso pode *ler* páginas fora da lista durante a pesquisa — só não as pode
       propor.
 
+## Fase 9 — Motivo das recusas e revisão
+
+`supabase/migrations/20261001000001_topic_rejection_reasons.sql`,
+`apps/api/app/services/rejections.py`, `apps/web/src/pages/RejectedReview.tsx`.
+
+- [x] Cada notícia recusada/falhada grava o motivo (categoria + explicação em português;
+      a da própria IA quando foi a redação a recusar), sem chamadas extra à IA.
+- [x] Tendências: motivo por notícia, "Pedir revisão" (volta à fila, tentativas do zero)
+      e "Rever todas" por motivo, com estimativa de custo pela média real de 7 dias.
+- [x] Falta de saldo/quota na IA falha à primeira (não gasta as 3 tentativas).
+- [x] Provedor DeepSeek em Provedores de IA (falta a chave e os modelos).
+- [ ] Notícias antigas: correr `python -m scripts.backfill_rejection_reasons` depois da migração.
+
 ## Definição de "concluído" (qualquer fase)
 
 - Corre localmente com `supabase start` + `apps/api` (uvicorn) + `apps/web`.

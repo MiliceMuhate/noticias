@@ -22,7 +22,8 @@ from .llm import UsageTracker
 from .log import log, log_error
 from .services.articles import generate_article
 from .services.news_sources import news_source_for
-from .services.scoring import score_topic
+from .services.rejections import from_editor, from_error, from_score
+from .services.scoring import relevance_score, score_topic
 from .services.hermes import hermes_tick
 from .services.translate import translate_published
 from .settings_store import DEFAULT_AUTOPILOT_POLICY, settings_dict
@@ -93,9 +94,13 @@ async def score_detected_topics() -> None:
         if status == "scored" and auto_approve.get("enabled") and score >= auto_approve.get("auto_threshold", 1):
             status = "approved_for_gen"
 
-        supabase.table("topics").update(
-            {"score": score, "status": status, "momentum": topic.get("momentum") or "rising"}
-        ).eq("id", topic["id"]).execute()
+        update: dict[str, Any] = {"score": score, "status": status, "momentum": topic.get("momentum") or "rising"}
+        if status == "rejected":
+            category, reason = from_score(
+                score, min_score, keywords, relevance_score(topic["term"], topic.get("category"), keywords)
+            )
+            update.update(rejection_category=category, rejection_reason=reason)
+        supabase.table("topics").update(update).eq("id", topic["id"]).execute()
         scored += 1
 
     if scored:
@@ -152,7 +157,10 @@ async def recover_stuck_topics() -> None:
             f"processo reiniciado (ou crash) a meio da geração — ficou preso em "
             f"'processing' há mais de {settings.stale_processing_minutes}min sem terminar"
         )
-        supabase.table("topics").update({"status": "failed"}).eq("id", topic["id"]).execute()
+        category, why = from_error(reason)
+        supabase.table("topics").update({"status": "failed", "rejection_category": category, "rejection_reason": why}).eq(
+            "id", topic["id"]
+        ).execute()
         # sem isto, o job desta tentativa ficava 'running' para sempre, sem
         # `error` nenhum — o painel mostrava o topic como falhado mas sem
         # nenhum erro técnico associado a explicar porquê.
@@ -178,7 +186,8 @@ async def _generate_one(topic: dict[str, Any]) -> None:
     # entretanto, a atualização afeta 0 linhas e paramos aqui, sem custo nenhum.
     claim = (
         supabase.table("topics")
-        .update({"status": "processing"})
+        # o motivo de uma recusa anterior deixa de valer assim que volta a ser gerada
+        .update({"status": "processing", "rejection_category": None, "rejection_reason": None})
         .eq("id", topic_id)
         .eq("status", "approved_for_gen")
         .execute()
@@ -186,13 +195,17 @@ async def _generate_one(topic: dict[str, Any]) -> None:
     if not claim.data:
         return
 
-    prior = (
+    # depois de um "Pedir revisão" as tentativas contam do zero (review_requested_at)
+    reviewed_at = (claim.data[0] or {}).get("review_requested_at")
+    prior_query = (
         supabase.table("jobs")
         .select("id", count="exact")
         .eq("topic_id", topic_id)
         .eq("type", "generate-article")
-        .execute()
     )
+    if reviewed_at:
+        prior_query = prior_query.gt("created_at", reviewed_at)
+    prior = prior_query.execute()
     attempt_no = (prior.count or 0) + 1
 
     job_res = (
@@ -246,7 +259,10 @@ async def _generate_one(topic: dict[str, Any]) -> None:
                     "cost_usd": cost_usd,
                 }
             ).eq("id", job_id).execute()
-        supabase.table("topics").update({"status": "rejected"}).eq("id", topic_id).execute()
+        category, why = from_editor(str(reason))
+        supabase.table("topics").update(
+            {"status": "rejected", "rejection_category": category, "rejection_reason": why}
+        ).eq("id", topic_id).execute()
         log("generate_pending", f'topic "{topic["term"]}" rejeitado pela redação: {reason}')
     except Exception as err:
         log_error("generate_pending", f'topic "{topic["term"]}" falhou (tentativa {attempt_no})', err)
@@ -261,13 +277,18 @@ async def _generate_one(topic: dict[str, Any]) -> None:
                     "cost_usd": cost_usd,
                 }
             ).eq("id", job_id).execute()
-        if attempt_no < settings.max_generate_attempts:
+        category, why = from_error(str(err))
+        # sem saldo/quota na IA, repetir daqui a 2 min dá o mesmo erro — falha já,
+        # e o operador revê todas de uma vez quando o provedor voltar a ter saldo
+        if attempt_no < settings.max_generate_attempts and category != "ia_sem_saldo":
             # devolve à fila para tentar de novo no próximo ciclo
             supabase.table("topics").update({"status": "approved_for_gen"}).eq("id", topic_id).execute()
         else:
             # esgotou as tentativas automáticas — estado terminal visível no
-            # painel, com o erro à mão e um botão para o operador tentar de novo
-            supabase.table("topics").update({"status": "failed"}).eq("id", topic_id).execute()
+            # painel, com o motivo à mão e um botão para o operador pedir revisão
+            supabase.table("topics").update(
+                {"status": "failed", "rejection_category": category, "rejection_reason": why}
+            ).eq("id", topic_id).execute()
 
 
 AUTOPILOT_KEY = "autopilot"

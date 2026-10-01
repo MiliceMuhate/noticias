@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Job, Topic } from '@repo/shared'
 import { supabase } from '../lib/supabase'
+import RejectedReview, { REJECTION_LABELS, reviewPatch } from './RejectedReview'
 
 /** Vista de tendências: termo, score, momentum e estado, atualizada ao vivo. */
 
@@ -74,11 +75,13 @@ export default function Trends() {
   // aprovação manual (ou repetição) de um topic para geração. A geração em si
   // não é instantânea: o backend só a processa no próximo ciclo do scheduler
   // (por omissão a cada 2 min — ver GENERATE_POLL_INTERVAL_MIN).
+  // recusada/falhada → "Pedir revisão": motivo limpo e tentativas do zero
   const approveForGen = useMutation({
     mutationFn: async (topic: TopicWithJobs) => {
+      const patch = topic.status === 'scored' ? { status: 'approved_for_gen' as const } : reviewPatch()
       const { error: e } = await supabase
         .from('topics')
-        .update({ status: 'approved_for_gen' })
+        .update(patch)
         .eq('id', topic.id)
       if (e) throw new Error(e.message)
     },
@@ -121,6 +124,7 @@ export default function Trends() {
         )}
       </div>
       {notice && <p className="text-sm text-slate-700">{notice}</p>}
+      {!showArchived && <RejectedReview />}
       {(archive.error || restore.error) && (
         <p className="text-sm text-red-700">Erro: {(archive.error ?? restore.error)?.message}</p>
       )}
@@ -146,7 +150,9 @@ export default function Trends() {
             const requesting = approveForGen.isPending && isThisTopic
             const requestFailed = approveForGen.isError && isThisTopic
             const justRequested = approveForGen.isSuccess && isThisTopic && t.status === 'approved_for_gen'
-            const error = t.status === 'failed' ? lastError(t) : null
+            const negated = t.status === 'failed' || t.status === 'rejected'
+            // notícias antigas (antes de haver motivo gravado) mostram o último erro técnico
+            const reason = negated ? (t.rejection_reason ?? (t.status === 'failed' ? lastError(t) : null)) : null
 
             return (
               <tr key={t.id} className="border-b border-slate-100 last:border-0">
@@ -169,19 +175,28 @@ export default function Trends() {
                       ver na fila de revisão
                     </Link>
                   )}
-                  {error && <p className="mt-1 max-w-xs text-xs text-red-600" title={error}>{error}</p>}
+                  {negated && t.rejection_category && (
+                    <span className="ml-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-800">
+                      {REJECTION_LABELS[t.rejection_category] ?? t.rejection_category}
+                    </span>
+                  )}
+                  {reason && (
+                    <p className={`mt-1 max-w-sm text-xs ${t.status === 'failed' ? 'text-red-600' : 'text-slate-500'}`} title={reason}>
+                      {reason}
+                    </p>
+                  )}
                 </td>
                 <td className="px-4 py-2 text-slate-500">{new Date(t.detected_at).toLocaleString('pt')}</td>
                 <td className="px-4 py-2 text-right">
-                  {!showArchived && (t.status === 'scored' || t.status === 'failed') && (
+                  {!showArchived && (t.status === 'scored' || negated) && (
                     <button
                       onClick={() => approveForGen.mutate(t)}
                       disabled={requesting}
                       className={`rounded-md px-3 py-1 text-xs font-medium text-white disabled:opacity-50 ${
-                        t.status === 'failed' ? 'bg-red-600 hover:bg-red-700' : 'bg-slate-900 hover:bg-slate-700'
+                        negated ? 'bg-amber-600 hover:bg-amber-700' : 'bg-slate-900 hover:bg-slate-700'
                       }`}
                     >
-                      {requesting ? 'A pedir…' : t.status === 'failed' ? 'Tentar novamente' : 'Gerar artigo'}
+                      {requesting ? 'A pedir…' : negated ? 'Pedir revisão' : 'Gerar artigo'}
                     </button>
                   )}
                   {requestFailed && (

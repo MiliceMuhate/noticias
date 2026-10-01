@@ -97,6 +97,10 @@ export interface Database {
           detected_at: string
           updated_at: string
           archived_at: string | null
+          /** porque foi recusada/falhou — ver apps/api/app/services/rejections.py */
+          rejection_category: string | null
+          rejection_reason: string | null
+          review_requested_at: string | null
         }
         Insert: {
           id?: string
@@ -125,6 +129,9 @@ export interface Database {
           detected_at?: string
           updated_at?: string
           archived_at?: string | null
+          rejection_category?: string | null
+          rejection_reason?: string | null
+          review_requested_at?: string | null
         }
         Relationships: []
       }

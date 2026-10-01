@@ -56,8 +56,11 @@ Artigos descobertos nas fontes. Núcleo do pipeline.
 | raw_data | jsonb | entry do feed — **inclui sempre `link`**, o URL do artigo original (é daí que `generate_pending` vai buscar o texto real) |
 | detected_at | timestamptz | |
 | updated_at | timestamptz | |
+| rejection_category | text | porque foi recusada/falhou (`pontuacao`, `nao_futebol`, `sem_conteudo`, `inviavel`, `duplicado`, `ia_sem_saldo`, `resposta_cortada`, `fonte_inacessivel`, `originalidade`, `auditoria`, `estrutura`, `erro_tecnico`) — `apps/api/app/services/rejections.py`; limpo quando volta a ser gerada |
+| rejection_reason | text | explicação em português; quando foi a IA a recusar (redação, P1/P2), é a explicação dela |
+| review_requested_at | timestamptz | "Pedir revisão"/"Rever todas" no painel: as tentativas de geração contam a partir daqui |
 
-Índices: `(status)`, `(source_id)`, `(detected_at desc)`. Único: `(source_id, term, region, detected_at::date)` para evitar duplicados no mesmo dia.
+Índices: `(status)`, `(source_id)`, `(detected_at desc)`, `(rejection_category)` parcial (recusadas/falhadas não arquivadas). Único: `(source_id, term, region, detected_at::date)` para evitar duplicados no mesmo dia.
 
 ### `sport_facts`
 O artigo-fonte real que fundamenta a reescrita (anti-invenção). **Fonte da verdade —
