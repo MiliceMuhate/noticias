@@ -180,7 +180,7 @@ app.post('/api/admin/*', express.json({ limit: '64kb' }), async (req, res) => {
       body: JSON.stringify(req.body ?? {}),
       // o teste de um modelo faz 2 chamadas reais, com novas tentativas se o
       // provedor estiver sobrecarregado
-      signal: AbortSignal.timeout(180_000),
+      signal: AbortSignal.timeout(540_000),
     })
     res.status(upstream.status).set('Cache-Control', 'no-store').type('application/json').send(await upstream.text())
   } catch (err) {

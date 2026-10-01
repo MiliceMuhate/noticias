@@ -321,10 +321,28 @@ _RETRY_STATUS = {429, 500, 502, 503, 504}
 _RETRY_DELAYS_SEC = (2.0, 6.0, 15.0)
 
 
+# Prazo total de cada pedido (não por pedaço lido). O timeout do httpx é por
+# leitura, e alguns provedores (visto com o DeepSeek, 2026-10-01) mantêm a
+# ligação viva com linhas vazias enquanto o pedido está numa fila que não
+# avança — sem isto o pedido nunca terminava e prendia a geração inteira.
+REQUEST_DEADLINE_SEC = 240.0
+
+
+class ProviderTimeout(RuntimeError):
+    """O provedor não respondeu dentro de REQUEST_DEADLINE_SEC."""
+
+
 async def _post(client: httpx.AsyncClient, path: str, body: dict[str, Any]) -> httpx.Response:
     for attempt, delay in enumerate((*_RETRY_DELAYS_SEC, None)):
         try:
-            response = await client.post(path, json=body)
+            response = await asyncio.wait_for(client.post(path, json=body), timeout=REQUEST_DEADLINE_SEC)
+        except asyncio.TimeoutError:
+            # um pedido preso numa fila não sai dela por voltar a tentar já —
+            # falha com uma mensagem clara em vez de multiplicar a espera
+            raise ProviderTimeout(
+                f"o provedor não respondeu em {REQUEST_DEADLINE_SEC:.0f} s ao modelo {body.get('model')} "
+                f"(fila ou sobrecarga do lado dele) — tenta mais tarde ou usa outro modelo"
+            ) from None
         except (httpx.TimeoutException, httpx.TransportError):
             if delay is None:
                 raise
@@ -535,12 +553,12 @@ async def test_model(raw_provider: dict[str, Any], model: str, question: str) ->
         )
         return result
 
-    answer = await run(None, "Responde de forma breve e direta.", question, 512)
+    answer = await run(None, "Responde de forma breve e direta.", question, 2048)
     structured = await run(
         _TEST_SCHEMA,
         "Extrais dados de uma frase para JSON.",
         "O Sporting venceu o Benfica por 3-1 no Estádio de Alvalade.",
-        512,
+        2048,
     )
     if structured.get("ok"):
         p = structured.get("parsed") or {}

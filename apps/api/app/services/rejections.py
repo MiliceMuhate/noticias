@@ -65,6 +65,11 @@ def from_error(error: str) -> tuple[str, str]:
             "O provedor de IA recusou o pedido por falta de saldo ou quota. Carrega créditos ou muda de provedor "
             "em Configuração → Provedores de IA e depois pede revisão."
         )
+    if "não respondeu em" in low:
+        return "erro_tecnico", (
+            "O provedor de IA não respondeu a tempo (fila ou sobrecarga do lado dele). Pede revisão mais tarde "
+            "ou muda o modelo em Configuração → Provedores de IA."
+        )
     if "cortada" in low:
         return "resposta_cortada", (
             "A resposta da IA foi cortada antes do fim (o modelo gastou o limite de tokens a raciocinar). "

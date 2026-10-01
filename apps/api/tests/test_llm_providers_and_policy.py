@@ -194,3 +194,18 @@ async def test_truncated_response_still_records_tokens_and_cost(monkeypatch):
         await llm.complete_json(step="x", system="s", prompt="p", schema={"type": "object"}, tracker=tracker)
     assert (tracker.input_tokens, tracker.output_tokens) == (1_000_000, 100_000)
     assert tracker.cost_usd == pytest.approx(1.5)
+
+
+async def test_hung_provider_fails_with_clear_timeout(monkeypatch):
+    """Provedor que nunca responde (fila presa): o pedido tem de terminar."""
+    import asyncio as _asyncio
+
+    async def never(*_a, **_k):
+        await _asyncio.sleep(3600)
+
+    class Hung:
+        post = staticmethod(never)
+
+    monkeypatch.setattr(llm, "REQUEST_DEADLINE_SEC", 0.05)
+    with pytest.raises(llm.ProviderTimeout, match="não respondeu"):
+        await llm._post(Hung(), "/chat/completions", {"model": "deepseek-flash"})
