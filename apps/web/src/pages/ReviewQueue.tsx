@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -422,6 +422,9 @@ function ReviewCard({
   error: string | null
 }) {
   const [showSource, setShowSource] = useState(false)
+  const [imageLoadFailed, setImageLoadFailed] = useState(false)
+  useEffect(() => setImageLoadFailed(false), [item.media_url])
+  const imageUnavailable = !item.media_url || imageLoadFailed
   const facts = item.topics?.sport_facts ?? []
   const sourceText = (facts[0]?.data as { text?: string } | undefined)?.text ?? null
   const meta = item.metadata as ContentMeta | null
@@ -464,15 +467,19 @@ function ReviewCard({
           ↗ ver artigo original {meta.source_name ? `(${meta.source_name})` : ''} — confirma a fidelidade antes de aprovar
         </a>
       )}
-      {item.media_url && (
+      {item.media_url && !imageLoadFailed ? (
         <img
           src={item.media_url}
-          alt=""
+          alt={item.title ?? 'Imagem do artigo'}
           className="mt-2 max-h-48 w-full rounded-md object-cover"
-          onError={(e) => {
-            e.currentTarget.style.display = 'none'
-          }}
+          onError={() => setImageLoadFailed(true)}
         />
+      ) : (
+        <p role="alert" className="mt-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+          {imageLoadFailed
+            ? '⚠️ Não foi possível carregar a imagem deste artigo. Substitua o URL antes de aprovar.'
+            : '⚠️ Este artigo não tem imagem. Associe uma imagem antes de aprovar.'}
+        </p>
       )}
       <h3 className="mt-2 text-lg font-semibold text-slate-900">{item.title ?? '(sem título)'}</h3>
       {meta?.dek && <p className="text-sm italic text-slate-500">{meta.dek}</p>}
@@ -566,8 +573,8 @@ function ReviewCard({
       <div className="mt-4 flex flex-wrap gap-2">
         <button
           onClick={onApprove}
-          disabled={busy || !!approveDisabledReason}
-          title={approveDisabledReason ?? undefined}
+          disabled={busy || !!approveDisabledReason || imageUnavailable}
+          title={imageUnavailable ? 'A aprovação exige uma imagem que carregue corretamente' : approveDisabledReason ?? undefined}
           className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
         >
           {approving ? 'A publicar…' : 'Aprovar e publicar'}
