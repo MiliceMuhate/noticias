@@ -5,8 +5,8 @@
 
 Sistema semi-autónomo que deteta notícias reais de **futebol** em feeds RSS
 configurados, reescreve-as (nunca inventa, atribuição sempre visível) e publica-as
-no **próprio site** — com **um portão de aprovação humana** antes de qualquer
-publicação. Ver `docs/` (PRD, ARCHITECTURE, DATA_MODEL, DESIGN, TASKS) e
+no **próprio site** — com revisão humana por omissão ou publicação automática
+condicionada a políticas de qualidade quando o piloto automático está ativo. Ver `docs/` (PRD, ARCHITECTURE, DATA_MODEL, DESIGN, TASKS) e
 `.claude/CLAUDE.md` para o contexto completo.
 
 ## Estrutura
